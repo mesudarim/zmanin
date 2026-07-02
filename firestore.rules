@@ -1,0 +1,54 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isSelf(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // ── Users ────────────────────────────────────────────────────────────────
+
+    match /users/{uid} {
+      // Read own profile, admin reads all, or user reads profile with their own email (needed for migration on first sign-in)
+      allow read: if isSelf(uid) || isAdmin() ||
+        (isAuth() && resource.data.email == request.auth.token.email);
+      // User can create/update their own profile document; admin can do anything
+      allow create: if isAdmin() || isSelf(uid);
+      allow update: if isAdmin() || isSelf(uid);
+      // User can delete a profile with their own email (migration: remove old pre-created profile)
+      allow delete: if isAdmin() ||
+        (isAuth() && resource.data.email == request.auth.token.email);
+    }
+
+    // ── Time Logs ────────────────────────────────────────────────────────────
+
+    match /time_logs/{logId} {
+      // Employees can read/write their own logs; admins can read all
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // ── Global Settings ──────────────────────────────────────────────────────
+
+    match /global_settings/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+  }
+}

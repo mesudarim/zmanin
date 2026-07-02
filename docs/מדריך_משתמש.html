@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZmanIn — מדריך למשתמש</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Heebo', Arial, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .page {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 40px 32px;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+      color: white;
+      border-radius: 20px;
+      padding: 56px 48px;
+      margin-bottom: 48px;
+      text-align: center;
+    }
+    .cover .logo {
+      width: 64px; height: 64px;
+      background: white;
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 900;
+      color: #1d4ed8;
+      margin-bottom: 20px;
+    }
+    .cover h1 { font-size: 36px; font-weight: 800; margin-bottom: 8px; }
+    .cover .subtitle { font-size: 18px; opacity: 0.85; font-weight: 300; }
+    .cover .badge {
+      display: inline-block;
+      margin-top: 20px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 99px;
+      padding: 6px 18px;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── TOC ── */
+    .toc {
+      background: white;
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 40px;
+      border: 1px solid #e2e8f0;
+    }
+    .toc h2 { font-size: 17px; font-weight: 700; color: #1d4ed8; margin-bottom: 16px; }
+    .toc ol { padding-right: 20px; }
+    .toc li { padding: 4px 0; color: #475569; }
+    .toc li a { color: #1d4ed8; text-decoration: none; }
+    .toc li a:hover { text-decoration: underline; }
+
+    /* ── Sections ── */
+    .section {
+      background: white;
+      border-radius: 16px;
+      padding: 36px 40px;
+      margin-bottom: 28px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .step-num {
+      width: 44px; height: 44px;
+      background: #1d4ed8;
+      color: white;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .section h2 { font-size: 22px; font-weight: 700; color: #0f172a; }
+
+    .section h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1d4ed8;
+      margin: 20px 0 8px;
+    }
+    .section p { color: #475569; margin-bottom: 10px; }
+    .section ul, .section ol {
+      padding-right: 22px;
+      color: #475569;
+      margin-bottom: 12px;
+    }
+    .section li { padding: 3px 0; }
+
+    /* ── Screenshot placeholder ── */
+    .screenshot {
+      background: #f1f5f9;
+      border: 2px dashed #94a3b8;
+      border-radius: 12px;
+      padding: 28px;
+      text-align: center;
+      margin: 20px 0;
+      color: #64748b;
+      font-size: 13px;
+    }
+    .screenshot .icon { font-size: 32px; margin-bottom: 8px; }
+    .screenshot strong { display: block; font-size: 14px; color: #334155; margin-bottom: 4px; }
+
+    /* ── Callout boxes ── */
+    .callout {
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 14px 0;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .callout-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+    .callout-body p { font-size: 13.5px; margin: 0; }
+
+    .callout.tip    { background: #eff6ff; border-right: 4px solid #3b82f6; }
+    .callout.warn   { background: #fffbeb; border-right: 4px solid #f59e0b; }
+    .callout.info   { background: #f0fdf4; border-right: 4px solid #22c55e; }
+
+    /* ── Step list ── */
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+      align-items: flex-start;
+    }
+    .steps li::before {
+      content: counter(step);
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-weight: 700;
+      font-size: 13px;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .steps li span { color: #475569; font-size: 14.5px; }
+
+    /* ── Highlight ── */
+    .highlight {
+      background: #dbeafe;
+      color: #1e40af;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-weight: 600;
+      font-size: 13.5px;
+    }
+
+    /* ── Key/Button ── */
+    kbd {
+      background: #1d4ed8;
+      color: white;
+      border-radius: 8px;
+      padding: 4px 14px;
+      font-family: 'Heebo', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    /* ── Feature grid ── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .feature-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .feature-card .icon { font-size: 22px; margin-bottom: 6px; }
+    .feature-card strong { display: block; font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+    .feature-card p { font-size: 13px; color: #64748b; margin: 0; }
+
+    /* Limit image height so portrait screenshots don't overflow pages */
+    .screenshot img {
+      max-height: 420px;
+      width: auto !important;
+      max-width: 100%;
+      display: block;
+      margin: 0 auto;
+      border-radius: 8px;
+    }
+
+    @media print {
+      body { background: white; }
+      .page { padding: 20px; }
+      .section { page-break-inside: avoid; }
+      .screenshot img { max-height: 380px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Cover -->
+  <div class="cover">
+    <div class="logo">Z</div>
+    <h1>ZmanIn — זמן-אין</h1>
+    <p class="subtitle">מדריך למשתמש · כניסה ראשונה ושימוש יומיומי</p>
+    <div class="badge">מוזיאון עין דור</div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h2>📋 תוכן עניינים</h2>
+    <ol>
+      <li><a href="#s1">קבלת מייל ההזמנה</a></li>
+      <li><a href="#s2">כניסה ראשונה למערכת</a></li>
+      <li><a href="#s3">מסך הבית — לוח הבקרה</a></li>
+      <li><a href="#s4">רישום כניסה ויציאה</a></li>
+      <li><a href="#s5">עבודה מהבית</a></li>
+      <li><a href="#s6">דיווח נסיעות</a></li>
+      <li><a href="#s7">דיווח היעדרות</a></li>
+      <li><a href="#s8">עריכת ימים שעברו / הוספת שעות חסרות</a></li>
+      <li><a href="#s9">הדוח החודשי שלי</a></li>
+      <li><a href="#s10">שאלות נפוצות</a></li>
+    </ol>
+  </div>
+
+
+  <!-- ── Section 1 ── -->
+  <div class="section" id="s1">
+    <div class="section-header">
+      <div class="step-num">1</div>
+      <h2>קבלת מייל ההזמנה</h2>
+    </div>
+
+    <p>לאחר שהמנהל יוצר את הפרופיל שלך במערכת, תקבל מייל הזמנה לכתובת הדוא"ל שלך.</p>
+
+    <div class="screenshot">
+      <div class="icon">📧</div>
+      <strong>תמונת מסך: מייל ההזמנה כפי שמופיע בתיבת הדואר</strong>
+      צלם/י את המייל שנשלח מ־noreply@zmanin.firebaseapp.com
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">📁</div>
+      <div class="callout-body">
+        <strong>לא מצאת את המייל? בדוק/י את תיקיית הספאם!</strong>
+        <p>מייל ההזמנה עלול להגיע לתיקיית הדואר הזבל (ספאם / Junk). אם לא קיבלת את המייל בתוך מספר דקות — בדוק/י שם לפני שפונה/ת למנהל.</p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⏱</div>
+      <div class="callout-body">
+        <strong>שימו לב — תוקף הקישור הוא שעה אחת בלבד</strong>
+        <p>יש ללחוץ על הקישור שבמייל תוך שעה מרגע קבלתו. אם הקישור פג תוקפו, פנה/י למנהל לקבלת הזמנה חדשה.</p>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">📱</div>
+      <div class="callout-body">
+        <strong>כניסה מטלפון נייד</strong>
+        <p>אם אתה/את פותח/ת את המייל בטלפון, לחץ/י על הקישור ישירות מתוך אפליקציית המייל — המערכת תיפתח בדפדפן.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Section 2 ── -->
+  <div class="section" id="s2">
+    <div class="section-header">
+      <div class="step-num">2</div>
+      <h2>כניסה ראשונה למערכת</h2>
+    </div>
+
+    <h3>שלב א׳ — לחיצה על הקישור</h3>
+    <p>לחץ/י על הכפתור <kbd>התחבר/י</kbd> שבמייל. הדפדפן ייפתח ויעביר אותך לדף הכניסה של המערכת.</p>
+
+    <div class="screenshot">
+      <div class="icon">🔗</div>
+      <strong>תמונת מסך: דף הטעינה לאחר לחיצה על הקישור</strong>
+      צלם/י את המסך שמופיע עם הספינר (טוען...)
+    </div>
+
+    <h3>שלב ב׳ — אימות כתובת המייל</h3>
+    <p>אם פתחת את הקישור מדפדפן שונה מזה שבו נמצא המייל (לדוגמה: פתחת מהטלפון ולא מהמחשב), המערכת תבקש ממך לאמת את כתובת המייל שלך.</p>
+
+    <ul>
+      <li>הכנס/י את כתובת הדוא"ל שלך בדיוק כפי שהיא מופיעה במייל שקיבלת</li>
+      <li>לחץ/י על <kbd>אישור</kbd></li>
+    </ul>
+
+    <div class="screenshot">
+      <div class="icon">✉️</div>
+      <strong>תמונת מסך: מסך אימות כתובת המייל</strong>
+      צלם/י את הטופס שמבקש לאמת את כתובת המייל
+    </div>
+
+    <h3>שלב ג׳ — כניסה מוצלחת</h3>
+    <p>לאחר האימות, המערכת תכנס אותך ישירות ללוח הבקרה האישי שלך. מעכשיו תוכל/י להיכנס בכל פעם מחדש דרך הדף הראשי של <span class="highlight">zmanin.web.app</span> ולחיצה על "כניסה עם קישור מייל".</p>
+
+    <div class="callout info">
+      <div class="callout-icon">✅</div>
+      <div class="callout-body">
+        <strong>לא צריך סיסמה!</strong>
+        <p>בכל כניסה עתידית — הכנס/י את כתובת המייל, תקבל/י קישור חדש, לחץ/י עליו ותיכנס/י אוטומטית.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Section 3 ── -->
+  <div class="section" id="s3">
+    <div class="section-header">
+      <div class="step-num">3</div>
+      <h2>מסך הבית — לוח הבקרה</h2>
+    </div>
+
+    <p>לאחר הכניסה תגיע/י למסך הבית. זהו המסך הראשי שבו תשתמש/י כל יום.</p>
+
+    <div class="screenshot">
+      <div class="icon">🏠</div>
+      <strong>תמונת מסך: לוח הבקרה הראשי</strong>
+      צלם/י את מסך הבית עם כפתור "כניסה", הטוגלים וכפתור "שמור"
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="icon">🕐</div>
+        <strong>כפתור כניסה / יציאה</strong>
+        <p>לחיצה על הכפתור הכחול רושמת את שעת הכניסה או היציאה שלך</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🏠</div>
+        <strong>עבדתי מהבית</strong>
+        <p>הפעל/י את הטוגל אם אתה/את עובד/ת מהבית — יחסוך את חישוב הנסיעות</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🚗</div>
+        <strong>נסיעה שונה היום</strong>
+        <p>אם נסעת מרחק שונה מהרגיל, הפעל/י את הטוגל והזן/י את מספר הק"מ</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📊</div>
+        <strong>דוחות</strong>
+        <p>גישה לדוח החודשי האישי שלך עם סיכום השעות, הנסיעות וההיעדרויות</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Section 4 ── -->
+  <div class="section" id="s4">
+    <div class="section-header">
+      <div class="step-num">4</div>
+      <h2>רישום כניסה ויציאה</h2>
+    </div>
+
+    <h3>רישום כניסה</h3>
+    <ol class="steps">
+      <li><span>פתח/י את האפליקציה בתחילת יום העבודה</span></li>
+      <li><span>לחץ/י על הכפתור הכחול <kbd>כניסה ⏰</kbd></span></li>
+      <li><span>שעת הכניסה תירשם אוטומטית</span></li>
+    </ol>
+
+    <div class="screenshot">
+      <div class="icon">▶️</div>
+      <strong>תמונת מסך: לאחר לחיצה על "כניסה"</strong>
+      צלם/י את המסך שמציג "נכנסת בשעה XX:XX" ואת כפתור "יציאה"
+    </div>
+
+    <h3>רישום יציאה</h3>
+    <ol class="steps">
+      <li><span>בסיום יום העבודה, פתח/י שוב את האפליקציה</span></li>
+      <li><span>לחץ/י על <kbd>יציאה ⏰</kbd></span></li>
+      <li><span>מספר השעות שעבדת ייחשב ויישמר אוטומטית</span></li>
+    </ol>
+
+    <div class="callout tip">
+      <div class="callout-icon">💡</div>
+      <div class="callout-body">
+        <strong>מספר כניסות ביום</strong>
+        <p>ניתן לצאת ולחזור מספר פעמים באותו יום (לדוגמה: יצאת לאוכל וחזרת). המערכת מצרפת את כל השעות יחד.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Section 5 ── -->
+  <div class="section" id="s5">
+    <div class="section-header">
+      <div class="step-num">5</div>
+      <h2>עבודה מהבית</h2>
+    </div>
+
+    <p>אם אתה/את עובד/ת מהבית, חשוב לסמן זאת כדי שלא יחושב לך תשלום נסיעות.</p>
+
+    <ol class="steps">
+      <li><span>פתח/י את לוח הבקרה</span></li>
+      <li><span>הפעל/י את הטוגל <strong>עבדתי מהבית 🏠</strong></span></li>
+      <li><span>לחץ/י על <kbd>שמור</kbd></span></li>
+    </ol>
+
+    <div class="screenshot">
+      <div class="icon">🏠</div>
+      <strong>תמונת מסך: טוגל "עבדתי מהבית" מופעל</strong>
+      צלם/י את המסך עם הטוגל כחול (מופעל) ואת כפתור "שמור"
+    </div>
+  </div>
+
+
+  <!-- ── Section 6 ── -->
+  <div class="section" id="s6">
+    <div class="section-header">
+      <div class="step-num">6</div>
+      <h2>דיווח נסיעות</h2>
+    </div>
+
+    <p>המערכת שומרת באופן אוטומטי את מספר הק"מ הקבוע שלך (כפי שהוגדר ע"י המנהל). אם ביום מסוים נסעת מרחק שונה, תוכל/י לשנות זאת.</p>
+
+    <h3>שינוי מספר הק"מ ליום ספציפי</h3>
+    <ol class="steps">
+      <li><span>הפעל/י את הטוגל <strong>נסיעה שונה היום 🚗</strong></span></li>
+      <li><span>הזן/י את מספר הק"מ בשדה שייפתח</span></li>
+      <li><span>לחץ/י על <kbd>שמור</kbd></span></li>
+    </ol>
+
+    <div class="screenshot">
+      <div class="icon">🚗</div>
+      <strong>תמונת מסך: שדה הק"מ הידני</strong>
+      צלם/י את המסך עם הטוגל "נסיעה שונה היום" מופעל ושדה הזנת ק"מ
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">💰</div>
+      <div class="callout-body">
+        <strong>חישוב עלות הנסיעה</strong>
+        <p>תשלום הנסיעות מחושב אוטומטית לפי מחיר ק"מ שנקבע ע"י המנהל. תוכל/י לראות את הסכום בדוח החודשי.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Section 7 ── -->
+  <div class="section" id="s7">
+    <div class="section-header">
+      <div class="step-num">7</div>
+      <h2>דיווח היעדרות</h2>
+    </div>
+
+    <p>ביום שבו לא עבדת, ניתן לדווח על היעדרות ולציין את הסיבה.</p>
+
+    <ol class="steps">
+      <li><span>עבור/י לתפריט <strong>הנוכחות שלי</strong> בסרגל הניווט העליון</span></li>
+      <li><span>בחר/י את התאריך הרצוי</span></li>
+      <li><span>לחץ/י על <kbd>+ הוסף היעדרות</kbd></span></li>
+      <li><span>בחר/י את סיבת ההיעדרות מהתפריט:
+        <ul style="margin-top:6px">
+          <li>🤒 <strong>מחלה</strong> — ימי מחלה</li>
+          <li>🪖 <strong>מילואים</strong> — שירות מילואים</li>
+          <li>👶 <strong>מחלת ילד</strong> — טיפול בילד חולה</li>
+          <li>🏖 <strong>חופשה</strong> — חופשה מתוכננת</li>
+        </ul>
+      </span></li>
+      <li><span>לחץ/י על <kbd>שמור</kbd></span></li>
+    </ol>
+
+    <div class="screenshot">
+      <div class="icon">🗓️</div>
+      <strong>תמונת מסך: טופס דיווח היעדרות</strong>
+      צלם/י את הטופס עם תפריט בחירת סיבת ההיעדרות
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">💡</div>
+      <div class="callout-body">
+        <strong>היעדרות מוצדקת לעומת לא מוצדקת</strong>
+        <p>היעדרות עם סיבה (מחלה, מילואים וכו') נחשבת <strong>מוצדקת</strong> ומסומנת בירוק בדוח. היעדרות ללא סיבה — <strong>לא מוצדקת</strong> ומסומנת באדום.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Section 8 ── -->
+  <div class="section" id="s8">
+    <div class="section-header">
+      <div class="step-num">8</div>
+      <h2>עריכת ימים שעברו / הוספת שעות חסרות</h2>
+    </div>
+
+    <p>שכחת לרשום כניסה או יציאה? אין בעיה — ניתן לערוך כל יום שעבר.</p>
+
+    <ol class="steps">
+      <li><span>עבור/י לתפריט <strong>הנוכחות שלי</strong></span></li>
+      <li><span>מצא/י את היום שברצונך לערוך ברשימה</span></li>
+      <li><span>לחץ/י על כפתור ✏️ <strong>עריכה</strong> ליד אותו יום</span></li>
+      <li><span>עדכן/י את שעת הכניסה ו/או היציאה</span></li>
+      <li><span>לחץ/י על <kbd>שמור</kbd></span></li>
+    </ol>
+
+    <div class="screenshot">
+      <div class="icon">✏️</div>
+      <strong>תמונת מסך: מסך עריכת יום קיים</strong>
+      צלם/י את טופס העריכה עם שדות שעת כניסה ויציאה
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠️</div>
+      <div class="callout-body">
+        <strong>הוספת יום שלא היה קיים</strong>
+        <p>אם אין רישום כלל לאותו יום — לחץ/י על <kbd>+ הוסף יום</kbd> כדי ליצור רישום חדש.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Section 9 ── -->
+  <div class="section" id="s9">
+    <div class="section-header">
+      <div class="step-num">9</div>
+      <h2>הדוח החודשי שלי</h2>
+    </div>
+
+    <p>בתפריט <strong>הדוח שלי</strong> תמצא/י סיכום מלא של הפעילות שלך לחודש נבחר.</p>
+
+    <div class="screenshot">
+      <div class="icon">📊</div>
+      <strong>תמונת מסך: מסך הדוח החודשי</strong>
+      צלם/י את מסך הדוח עם הטבלה, הסיכום וכפתורי הייצוא
+    </div>
+
+    <h3>מה ניתן לראות בדוח?</h3>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="icon">⏰</div>
+        <strong>שעות עבודה</strong>
+        <p>סה"כ שעות שדווחו מול שעות תיאורטיות</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🏖</div>
+        <strong>היעדרויות</strong>
+        <p>ימי היעדרות מוצדקים ולא מוצדקים</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🚗</div>
+        <strong>נסיעות</strong>
+        <p>סה"כ ק"מ וסכום הנסיעות לתשלום</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📥</div>
+        <strong>ייצוא CSV</strong>
+        <p>הורד/י את הדוח כקובץ Excel לארכיון אישי</p>
+      </div>
+    </div>
+
+    <h3>בחירת חודש</h3>
+    <p>בראש מסך הדוח ניתן לבחור חודש ושנה שונים כדי לצפות בדוחות עבר.</p>
+  </div>
+
+
+  <!-- ── Section 10 ── -->
+  <div class="section" id="s10">
+    <div class="section-header">
+      <div class="step-num">10</div>
+      <h2>שאלות נפוצות</h2>
+    </div>
+
+    <h3>❓ שכחתי ללחוץ "יציאה" — מה עושים?</h3>
+    <p>עבור/י למסך "הנוכחות שלי", מצא/י את היום הרצוי ולחץ/י על עריכה. הזן/י ידנית את שעת היציאה.</p>
+
+    <h3>❓ הקישור שקיבלתי במייל לא עובד</h3>
+    <p>הקישור פג תוקפו (תקף שעה אחת בלבד). פנה/י למנהל שישלח הזמנה חדשה.</p>
+
+    <h3>❓ לא רואה את ימי ההיעדרות בדוח</h3>
+    <p>וודא/י שדיווחת על ההיעדרות מתוך מסך "הנוכחות שלי" וסימנת את הסיבה המתאימה.</p>
+
+    <h3>❓ הק"מ שמופיע בדוח אינו נכון</h3>
+    <p>ניתן לערוך כל יום ולשנות את מספר הק"מ. אם הבעיה חוזרת, פנה/י למנהל לבדיקת ברירת המחדל של הק"מ בפרופיל שלך.</p>
+
+    <h3>❓ אני רואה "Missing or insufficient permissions"</h3>
+    <p>זו בעיה טכנית. צא/י מהמערכת (לחץ/י על השם שלך בפינה), היכנס/י מחדש. אם הבעיה ממשיכה — פנה/י למנהל.</p>
+
+    <h3>❓ כיצד מחליפים שפה?</h3>
+    <p>לחץ/י על הדגל שבסרגל הניווט העליון (🇬🇧 לאנגלית / 🇮🇱 לעברית).</p>
+
+    <div class="callout info" style="margin-top:24px">
+      <div class="callout-icon">📞</div>
+      <div class="callout-body">
+        <strong>צריך/ה עזרה נוספת?</strong>
+        <p>פנה/י למנהל המערכת: <strong>raphael@eindormuseum.co.il</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center; color:#94a3b8; font-size:12px; margin-top:32px; padding-bottom:40px;">
+    ZmanIn · מוזיאון עין דור · © 2026
+  </div>
+
+</div>
+
+<!-- ── Floating toolbar ── -->
+<div id="toolbar" style="
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: white;
+  border-radius: 14px;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: 'Heebo', sans-serif;
+  font-size: 13px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  z-index: 9999;
+  transition: opacity 0.2s;
+">
+  <span id="toolbar-hint" style="opacity:0.7">לחץ/י על מסגרת מקוקוות ← הדבק תמונה (Ctrl+V)</span>
+  <button id="save-btn" onclick="saveFile()" style="
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 18px;
+    font-size: 13px;
+    font-family: 'Heebo', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  ">💾 שמור</button>
+  <button id="pdf-btn" onclick="window.print()" style="
+    background: #64748b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 18px;
+    font-size: 13px;
+    font-family: 'Heebo', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+  ">🖨 הדפס PDF</button>
+</div>
+
+<script>
+  let selectedSlot = null;
+  const STORAGE_KEY = 'zmanin_guide_images';
+
+  function hint(text, color) {
+    const el = document.getElementById('toolbar-hint');
+    el.textContent = text;
+    el.style.color = color || 'rgba(255,255,255,0.7)';
+  }
+
+  // ── Assign stable index to every slot on load ────────────────────────────
+  const slots = Array.from(document.querySelectorAll('.screenshot'));
+  slots.forEach((el, i) => el.dataset.slotIndex = i);
+
+  // ── Persist images in localStorage ───────────────────────────────────────
+  function saveImages() {
+    const data = {};
+    slots.forEach((slot, i) => {
+      const img = slot.querySelector('img');
+      if (img && img.src.startsWith('data:')) data[i] = img.src;
+    });
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  }
+
+  function loadImages() {
+    let data;
+    try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return; }
+    Object.entries(data).forEach(([i, src]) => {
+      const slot = slots[Number(i)];
+      if (slot) insertImage(src, slot, false);
+    });
+  }
+
+  // ── Placeholder click-to-select ──────────────────────────────────────────
+  function initSlot(el) {
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => {
+      if (selectedSlot) selectedSlot.style.borderColor = '#94a3b8';
+      selectedSlot = el;
+      el.style.borderColor = '#3b82f6';
+      el.style.background  = '#eff6ff';
+      hint('✅ מוכן — הדבק תמונה עכשיו (Ctrl+V)', '#93c5fd');
+    });
+  }
+  slots.forEach(initSlot);
+
+  // ── Paste ────────────────────────────────────────────────────────────────
+  document.addEventListener('paste', (e) => {
+    if (!selectedSlot) return;
+    const imgItem = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'));
+    if (!imgItem) return;
+    const reader = new FileReader();
+    reader.onload = () => insertImage(reader.result, selectedSlot, true);
+    reader.readAsDataURL(imgItem.getAsFile());
+  });
+
+  // ── Insert image into slot ───────────────────────────────────────────────
+  function insertImage(src, slot, persist) {
+    const img = new Image();
+    img.src = src;
+    img.style.cssText = 'border-radius:8px;display:block;';
+
+    slot.innerHTML = '';
+    slot.style.cssText = 'background:transparent;border:2px solid #3b82f6;border-radius:12px;padding:4px;margin:20px 0;';
+    slot.appendChild(img);
+    slot.appendChild(makeActionBar(img, slot));
+
+    if (persist) {
+      saveImages();
+      selectedSlot = null;
+      hint('✅ תמונה נוספה ונשמרה! לחץ/י על מסגרת נוספת.', '#86efac');
+    }
+  }
+
+  // ── Action bar ───────────────────────────────────────────────────────────
+  function makeActionBar(img, slot) {
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:6px;padding:6px 4px 2px;flex-wrap:wrap;';
+    bar.appendChild(makeBtn('🟥 הוסף מסגרת אדומה', '#ef4444', () => enterAnnotation(img, slot, bar)));
+    bar.appendChild(makeBtn('✕ הסר תמונה', '#64748b', (ev) => {
+      ev.stopPropagation();
+      resetSlot(slot);
+      saveImages();
+    }));
+    return bar;
+  }
+
+  function makeBtn(text, bg, onClick) {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.style.cssText = `background:${bg};color:white;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:Heebo,sans-serif;font-weight:600;`;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function resetSlot(slot) {
+    slot.innerHTML = '<div class="icon">🖼</div><strong>לחץ/י כאן ← הדבק תמונה חדשה (Ctrl+V)</strong>';
+    slot.style.cssText = 'background:#f1f5f9;border:2px dashed #94a3b8;border-radius:12px;padding:28px;text-align:center;color:#64748b;font-size:13px;margin:20px 0;cursor:pointer;';
+    initSlot(slot);
+  }
+
+  // ── Annotation mode ───────────────────────────────────────────────────────
+  function enterAnnotation(img, slot, bar) {
+    const canvas = document.createElement('canvas');
+    canvas.width  = img.naturalWidth  || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    canvas.style.cssText = 'width:100%;border-radius:8px;display:block;cursor:crosshair;';
+    img.replaceWith(canvas);
+
+    let drawing = false, sx = 0, sy = 0, snapshot = null;
+
+    function coords(e) {
+      const r = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return [(src.clientX - r.left) * canvas.width / r.width,
+              (src.clientY - r.top)  * canvas.height / r.height];
+    }
+    function onDown(e) { e.preventDefault(); [sx, sy] = coords(e); snapshot = ctx.getImageData(0,0,canvas.width,canvas.height); drawing = true; }
+    function onMove(e) {
+      if (!drawing) return; e.preventDefault();
+      const [cx, cy] = coords(e);
+      ctx.putImageData(snapshot, 0, 0);
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = Math.max(3, canvas.width / 200);
+      ctx.strokeRect(sx, sy, cx - sx, cy - sy);
+    }
+    function onUp() { if (!drawing) return; drawing = false; snapshot = ctx.getImageData(0,0,canvas.width,canvas.height); }
+
+    canvas.addEventListener('mousedown',  onDown);
+    canvas.addEventListener('mousemove',  onMove);
+    canvas.addEventListener('mouseup',    onUp);
+    canvas.addEventListener('touchstart', onDown, { passive: false });
+    canvas.addEventListener('touchmove',  onMove, { passive: false });
+    canvas.addEventListener('touchend',   onUp);
+
+    bar.innerHTML = '';
+    bar.appendChild(makeBtn('↩ בטל אחרון', '#f59e0b', () => { if (snapshot) ctx.putImageData(snapshot, 0, 0); }));
+    bar.appendChild(makeBtn('✅ סיום סימון', '#22c55e', () => finishAnnotation(canvas, slot, bar)));
+    bar.appendChild(makeBtn('✕ ביטול', '#94a3b8',     () => finishAnnotation(canvas, slot, bar)));
+    hint('🟥 גרור/י על התמונה לציור מסגרת — ניתן לצייר כמה שרוצים', '#fca5a5');
+  }
+
+  function finishAnnotation(canvas, slot, bar) {
+    const newImg = new Image();
+    newImg.src = canvas.toDataURL('image/png');
+    newImg.style.cssText = 'border-radius:8px;display:block;';
+    canvas.replaceWith(newImg);
+    bar.innerHTML = '';
+    bar.appendChild(makeBtn('🟥 הוסף מסגרת אדומה', '#ef4444', () => enterAnnotation(newImg, slot, bar)));
+    bar.appendChild(makeBtn('✕ הסר תמונה', '#64748b', (ev) => { ev.stopPropagation(); resetSlot(slot); saveImages(); }));
+    saveImages();
+    hint('✅ נשמר אוטומטית!', '#86efac');
+    setTimeout(() => hint('לחץ/י על מסגרת מקוקוות ← הדבק תמונה (Ctrl+V)'), 2000);
+  }
+
+  // ── Export HTML file ─────────────────────────────────────────────────────
+  async function saveFile() {
+    const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+    const blob  = new Blob([html], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'מדריך_משתמש.html';
+    a.click();
+    hint('✅ קובץ הורד — החלף את הקובץ הישן בקובץ החדש שבתיקיית Downloads', '#86efac');
+    setTimeout(() => hint('לחץ/י על מסגרת מקוקוות ← הדבק תמונה (Ctrl+V)'), 4000);
+  }
+
+  window.addEventListener('beforeprint', () => document.getElementById('toolbar').style.display = 'none');
+  window.addEventListener('afterprint',  () => document.getElementById('toolbar').style.display = 'flex');
+
+  // ── Restore images from localStorage on load ─────────────────────────────
+  loadImages();
+</script>
+
+</body>
+</html>
