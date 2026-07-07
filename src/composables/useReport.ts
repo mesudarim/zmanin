@@ -29,8 +29,12 @@ export function useReport() {
       theoreticalHours = Math.round(dailyBase * workingDays * 100) / 100
     }
 
-    // Absence days count as full work days toward the hours difference
-    const absenceEquivalentHours = Math.round(absenceLogs.length * dailyBase * 100) / 100
+    // Absence days count as full work days — but weekend absences (Fri/Sat) don't count
+    const absenceWeekdayCount = absenceLogs.filter(l => {
+      const dow = new Date(l.date).getDay()
+      return dow !== 5 && dow !== 6
+    }).length
+    const absenceEquivalentHours = Math.round(absenceWeekdayCount * dailyBase * 100) / 100
     const hoursDiff = Math.round((totalDecimalHours + absenceEquivalentHours - theoreticalHours) * 100) / 100
 
     const absenceDays = absenceLogs.map(l => ({

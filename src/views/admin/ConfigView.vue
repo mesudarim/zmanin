@@ -15,24 +15,23 @@ const saved = ref(false)
 
 const kmPrice = ref(0.5)
 const weeklyHoursBase = ref(40)
-const reasons = ref<AbsenceReason[]>([])
+const reasons    = ref<AbsenceReason[]>([])
+const endReasons = ref<AbsenceReason[]>([])
 
-const newReason = reactive({ labelEn: '', labelHe: '' })
+const newReason    = reactive({ labelEn: '', labelHe: '' })
+const newEndReason = reactive({ labelEn: '', labelHe: '' })
 
 onMounted(async () => {
   await settingsStore.load()
-  kmPrice.value = settingsStore.settings.kmPrice
+  kmPrice.value        = settingsStore.settings.kmPrice
   weeklyHoursBase.value = settingsStore.settings.weeklyHoursBase
-  reasons.value = [...settingsStore.settings.absenceReasons]
+  reasons.value        = [...settingsStore.settings.absenceReasons]
+  endReasons.value     = [...(settingsStore.settings.endReasons ?? [])]
 })
 
 function addReason() {
   if (!newReason.labelEn || !newReason.labelHe) return
-  reasons.value.push({
-    id: crypto.randomUUID(),
-    labelEn: newReason.labelEn,
-    labelHe: newReason.labelHe
-  })
+  reasons.value.push({ id: crypto.randomUUID(), labelEn: newReason.labelEn, labelHe: newReason.labelHe })
   newReason.labelEn = ''
   newReason.labelHe = ''
 }
@@ -41,13 +40,25 @@ function removeReason(id: string) {
   reasons.value = reasons.value.filter(r => r.id !== id)
 }
 
+function addEndReason() {
+  if (!newEndReason.labelEn || !newEndReason.labelHe) return
+  endReasons.value.push({ id: crypto.randomUUID(), labelEn: newEndReason.labelEn, labelHe: newEndReason.labelHe })
+  newEndReason.labelEn = ''
+  newEndReason.labelHe = ''
+}
+
+function removeEndReason(id: string) {
+  endReasons.value = endReasons.value.filter(r => r.id !== id)
+}
+
 async function saveConfig() {
   saving.value = true
   saved.value = false
   await settingsStore.save({
     kmPrice: Number(kmPrice.value),
     weeklyHoursBase: Number(weeklyHoursBase.value),
-    absenceReasons: reasons.value
+    absenceReasons: reasons.value,
+    endReasons: endReasons.value
   })
   saving.value = false
   saved.value = true
@@ -111,6 +122,35 @@ async function saveConfig() {
         <AppInput v-model="newReason.labelEn" :label="t.admin.labelEn" class="flex-1 min-w-32" />
         <AppInput v-model="newReason.labelHe" :label="t.admin.labelHe" class="flex-1 min-w-32" />
         <AppButton variant="secondary" size="sm" @click="addReason">+ {{ t.admin.addReason }}</AppButton>
+      </div>
+    </div>
+
+    <!-- End of employment reasons -->
+    <div class="card space-y-4">
+      <h2 class="font-semibold text-gray-800">{{ t.admin.endReasons }}</h2>
+
+      <ul class="space-y-2">
+        <li
+          v-for="r in endReasons"
+          :key="r.id"
+          class="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2"
+        >
+          <div>
+            <span class="text-sm font-medium text-gray-800">{{ r.labelEn }}</span>
+            <span class="text-xs text-gray-400 ms-2">/ {{ r.labelHe }}</span>
+          </div>
+          <AppButton variant="ghost" size="sm" @click="removeEndReason(r.id)">
+            <svg class="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </AppButton>
+        </li>
+      </ul>
+
+      <div class="flex gap-2 items-end flex-wrap">
+        <AppInput v-model="newEndReason.labelEn" :label="t.admin.labelEn" class="flex-1 min-w-32" />
+        <AppInput v-model="newEndReason.labelHe" :label="t.admin.labelHe" class="flex-1 min-w-32" />
+        <AppButton variant="secondary" size="sm" @click="addEndReason">+ {{ t.admin.addEndReason }}</AppButton>
       </div>
     </div>
 

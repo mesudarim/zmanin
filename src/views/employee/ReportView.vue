@@ -67,13 +67,16 @@ const editDate      = ref('')
 const editLogId     = ref<string | null>(null)
 
 const form = reactive({
-  type:          'work' as 'work' | 'absence',
-  isRemote:      false,
-  hasCustomKm:   false,
-  customKm:      null as number | null,
-  absenceReason: '',
-  dateFrom:      '',
-  dateTo:        ''
+  type:            'work' as 'work' | 'absence',
+  isRemote:        false,
+  hasCustomKm:     false,
+  customKm:        null as number | null,
+  absenceReason:   '',
+  milouimClockIn:  '',
+  milouimClockOut: '',
+  comment:         '',
+  dateFrom:        '',
+  dateTo:          ''
 })
 
 const editSessions = ref<{ clockIn: string; clockOut: string }[]>([{ clockIn: '', clockOut: '' }])
@@ -120,6 +123,21 @@ const absenceReasonOptions = computed(() =>
   }))
 )
 
+function isMilouimReason(id: string): boolean {
+  const r = settingsStore.settings.absenceReasons.find(x => x.id === id)
+  if (!r) return false
+  return r.labelEn.toLowerCase().includes('milouim') || r.labelHe.includes('מילואים')
+}
+
+const milouimHoursTotal = computed(() => {
+  if (!report.value) return 0
+  return Math.round(
+    report.value.logs
+      .filter(l => l.type === 'absence' && isMilouimReason(l.absenceReason ?? '') && (l.milouimTotalDecimalHours ?? 0) > 0)
+      .reduce((sum, l) => sum + (l.milouimTotalDecimalHours ?? 0), 0)
+    * 100) / 100
+})
+
 function openModal(dateStr: string, log: TimeLog | null) {
   editDate.value  = dateStr
   editLogId.value = log?.id ?? null
@@ -133,8 +151,11 @@ function openModal(dateStr: string, log: TimeLog | null) {
     : [{ clockIn: '', clockOut: '' }]
   form.hasCustomKm   = log?.customKm !== null && log?.customKm !== undefined
   form.customKm      = log?.customKm ?? null
-  form.absenceReason = log?.absenceReason ?? ''
-  form.dateFrom      = dateStr
+  form.absenceReason   = log?.absenceReason ?? ''
+  form.milouimClockIn  = log?.milouimClockIn  ? tsToTime(log.milouimClockIn)  : ''
+  form.milouimClockOut = log?.milouimClockOut ? tsToTime(log.milouimClockOut) : ''
+  form.comment         = log?.comment ?? ''
+  form.dateFrom        = dateStr
   form.dateTo        = dateStr
   showEditModal.value = true
 }
@@ -156,18 +177,37 @@ async function saveEdit() {
     const from = new Date(form.dateFrom || editDate.value)
     const rawTo = new Date(form.dateTo || editDate.value)
     const to = rawTo < from ? new Date(from) : rawTo
+    const isMilouim = isMilouimReason(form.absenceReason)
     for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0]
+      let milouimClockIn: ReturnType<typeof timeToTs> = null
+      let milouimClockOut: ReturnType<typeof timeToTs> = null
+      let milouimTotalMinutes: number | null = null
+      let milouimTotalDecimalHours: number | null = null
+      if (isMilouim && form.milouimClockIn) {
+        milouimClockIn  = timeToTs(dateStr, form.milouimClockIn)
+        milouimClockOut = form.milouimClockOut ? timeToTs(dateStr, form.milouimClockOut) : null
+        if (milouimClockIn && milouimClockOut) {
+          milouimTotalMinutes     = Math.max(0, Math.floor((milouimClockOut.toMillis() - milouimClockIn.toMillis()) / 60000))
+          milouimTotalDecimalHours = Math.round(milouimTotalMinutes / 60 * 100) / 100
+        }
+      }
       await createOrUpdateTimeLog({
         userId,
-        date:             d.toISOString().split('T')[0],
-        type:             'absence',
-        sessions:         [],
-        totalMinutes:     0,
-        totalDecimalHours: 0,
-        isRemote:         false,
-        customKm:         null,
-        kmForDay:         0,
-        absenceReason:    form.absenceReason
+        date:                 dateStr,
+        type:                 'absence',
+        sessions:             [],
+        totalMinutes:         0,
+        totalDecimalHours:    0,
+        isRemote:             false,
+        customKm:             null,
+        kmForDay:             0,
+        absenceReason:        form.absenceReason,
+        milouimClockIn,
+        milouimClockOut,
+        milouimTotalMinutes,
+        milouimTotalDecimalHours,
+        comment:              form.comment || null
       })
     }
   } else {
@@ -197,7 +237,9 @@ async function saveEdit() {
       isRemote,
       customKm,
       kmForDay,
-      absenceReason:    null
+      absenceReason:    null,
+      comment:          form.comment || null,
+      manualEntry:      true
     })
   }
 
@@ -271,6 +313,160 @@ watch([selectedYear, selectedMonth], load)
     </div>
 
     <template v-else-if="report">
+      <!-- Full month table -->
+      <div class="card overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-100 text-xs text-gray-500">
+              <th class="pb-2 w-8" />
+              <th class="pb-2 font-medium text-start w-24">{{ t.report.date }}</th>
+              <th class="pb-2 font-medium text-start">{{ t.report.type }}</th>
+              <th class="pb-2 font-medium text-start">{{ t.dashboard.clockIn }} / {{ t.dashboard.clockOut }}</th>
+              <th class="pb-2 font-medium text-end">{{ t.report.hours }}</th>
+              <th class="pb-2 font-medium text-end">{{ t.report.km }}</th>
+              <th class="pb-2 font-medium text-end">{{ t.report.amount }}</th>
+              <th class="pb-2 w-8" />
+              <th class="pb-2 font-medium text-start text-gray-400">{{ t.report.comment }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="day in allDays"
+              :key="day.date"
+              :class="[
+                'border-b transition-colors',
+                day.isWeekend ? 'bg-gray-50/60 text-gray-400' : 'hover:bg-primary-50/30',
+                'border-gray-50'
+              ]"
+            >
+              <!-- Edit / Add (start of row) -->
+              <td class="py-1.5 ps-0">
+                <button
+                  v-if="day.log"
+                  class="p-1 rounded text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                  @click="openModal(day.date, day.log)"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                  </svg>
+                </button>
+                <button
+                  v-else
+                  class="flex items-center justify-center w-6 h-6 rounded-lg bg-primary-100 text-primary-700 hover:bg-primary-600 hover:text-white transition-colors font-bold"
+                  @click="openModal(day.date, null)"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                  </svg>
+                </button>
+              </td>
+
+              <!-- Date -->
+              <td class="py-1.5 pe-2">
+                <span class="text-xs font-mono">{{ day.date.slice(8) }}</span>
+                <span class="text-xs text-gray-400 ms-1">{{ dowLabel(day.dow) }}</span>
+              </td>
+
+              <!-- Type -->
+              <td class="py-1.5">
+                <AppBadge
+                  v-if="day.log"
+                  :variant="day.log.type === 'absence' ? 'yellow' : hasOpenSession(day.log) ? 'red' : day.log.isRemote ? 'blue' : 'green'"
+                >
+                  {{ day.log.type === 'absence'
+                      ? getReasonLabel(day.log.absenceReason ?? '')
+                      : day.log.isRemote ? t.report.remote : t.report.work }}
+                </AppBadge>
+                <span v-else class="text-xs text-gray-300">—</span>
+              </td>
+
+              <!-- Sessions: Clock In → Clock Out per session -->
+              <td class="py-1.5">
+                <div v-if="day.log?.type === 'work'" class="space-y-0.5">
+                  <div class="flex items-center gap-1 mb-0.5" v-if="day.log.manualEntry">
+                    <svg class="w-3 h-3 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                  </div>
+                  <div
+                    v-for="(s, idx) in getSessions(day.log)"
+                    :key="idx"
+                    :class="['text-xs font-mono flex items-center gap-1', day.log.manualEntry ? 'text-amber-600' : 'text-gray-600']"
+                  >
+                    <span>{{ tsToTime(s.clockIn) }}</span>
+                    <span :class="day.log.manualEntry ? 'text-amber-300' : 'text-gray-300'">→</span>
+                    <span>{{ s.clockOut ? tsToTime(s.clockOut) : '…' }}</span>
+                    <span :class="['text-xs', day.log.manualEntry ? 'text-amber-400' : 'text-gray-400']" v-if="s.minutes">({{ Math.floor(s.minutes/60) }}h{{ String(s.minutes%60).padStart(2,'0') }})</span>
+                  </div>
+                </div>
+                <div v-else-if="day.log?.milouimClockIn" class="text-xs font-mono text-purple-600 flex items-center gap-1">
+                  <span>{{ tsToTime(day.log.milouimClockIn) }}</span>
+                  <span class="text-purple-300">→</span>
+                  <span>{{ day.log.milouimClockOut ? tsToTime(day.log.milouimClockOut) : '…' }}</span>
+                </div>
+                <span v-else class="text-xs text-gray-300">—</span>
+              </td>
+
+              <!-- Total hours -->
+              <td class="py-1.5 text-end font-mono text-xs">
+                <span
+                  v-if="day.log?.type === 'work' && day.log.totalDecimalHours"
+                  :class="day.log.manualEntry ? 'text-amber-600' : ''"
+                >
+                  {{ day.log.totalDecimalHours }}h
+                </span>
+                <span v-else-if="day.log?.milouimTotalDecimalHours" class="text-purple-600">
+                  {{ day.log.milouimTotalDecimalHours }}h
+                </span>
+                <span v-else>—</span>
+              </td>
+
+              <!-- KM -->
+              <td class="py-1.5 text-end font-mono text-xs">
+                {{ day.log ? (day.log.kmForDay ?? 0) : '—' }}
+              </td>
+
+              <!-- Amount -->
+              <td class="py-1.5 text-end font-mono text-xs text-green-700">
+                {{ day.log ? ((day.log.kmForDay ?? 0) * settingsStore.settings.kmPrice).toFixed(2) : '—' }}
+              </td>
+
+              <!-- Delete (end of row) -->
+              <td class="py-1.5 text-end">
+                <button
+                  v-if="day.log?.id"
+                  class="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  @click="doDelete(day.log.id!)"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+              </td>
+
+              <!-- Comment -->
+              <td class="py-1.5 max-w-[180px]">
+                <span v-if="day.log?.comment" class="text-xs text-gray-500 italic truncate block" :title="day.log.comment">
+                  {{ day.log.comment }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="font-semibold text-gray-900 border-t-2 border-gray-200">
+              <td colspan="4" class="pt-3 text-sm">{{ t.report.totalAmount }}</td>
+              <td class="pt-3 text-end font-mono text-sm">{{ report.totalDecimalHours }}h</td>
+              <td class="pt-3 text-end" />
+              <td class="pt-3 text-end font-mono text-sm text-green-700">{{ report.totalKmAmount.toFixed(2) }}</td>
+              <td /><td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
       <!-- Summary cards -->
       <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
         <!-- Row 1: worked / excused / effective -->
@@ -306,128 +502,11 @@ watch([selectedYear, selectedMonth], load)
         </div>
       </div>
 
-      <!-- Full month table -->
-      <div class="card overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-gray-100 text-xs text-gray-500">
-              <th class="pb-2 font-medium text-start w-24">{{ t.report.date }}</th>
-              <th class="pb-2 font-medium text-start">{{ t.report.type }}</th>
-              <th class="pb-2 font-medium text-start">{{ t.dashboard.clockIn }} / {{ t.dashboard.clockOut }}</th>
-              <th class="pb-2 font-medium text-end">{{ t.report.hours }}</th>
-              <th class="pb-2 font-medium text-end">{{ t.report.km }}</th>
-              <th class="pb-2 font-medium text-end">{{ t.report.amount }}</th>
-              <th class="pb-2 w-16" />
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="day in allDays"
-              :key="day.date"
-              :class="[
-                'border-b transition-colors',
-                day.isWeekend ? 'bg-gray-50/60 text-gray-400' : 'hover:bg-primary-50/30',
-                'border-gray-50'
-              ]"
-            >
-              <!-- Date -->
-              <td class="py-1.5 pe-2">
-                <span class="text-xs font-mono">{{ day.date.slice(8) }}</span>
-                <span class="text-xs text-gray-400 ms-1">{{ dowLabel(day.dow) }}</span>
-              </td>
-
-              <!-- Type -->
-              <td class="py-1.5">
-                <AppBadge
-                  v-if="day.log"
-                  :variant="day.log.type === 'absence' ? 'yellow' : hasOpenSession(day.log) ? 'red' : day.log.isRemote ? 'blue' : 'green'"
-                >
-                  {{ day.log.type === 'absence'
-                      ? getReasonLabel(day.log.absenceReason ?? '')
-                      : day.log.isRemote ? t.report.remote : t.report.work }}
-                </AppBadge>
-                <span v-else class="text-xs text-gray-300">—</span>
-              </td>
-
-              <!-- Sessions: Clock In → Clock Out per session -->
-              <td class="py-1.5">
-                <div v-if="day.log?.type === 'work'" class="space-y-0.5">
-                  <div
-                    v-for="(s, idx) in getSessions(day.log)"
-                    :key="idx"
-                    class="text-xs font-mono text-gray-600 flex items-center gap-1"
-                  >
-                    <span>{{ tsToTime(s.clockIn) }}</span>
-                    <span class="text-gray-300">→</span>
-                    <span>{{ s.clockOut ? tsToTime(s.clockOut) : '…' }}</span>
-                    <span v-if="s.minutes" class="text-gray-400">({{ Math.floor(s.minutes/60) }}h{{ String(s.minutes%60).padStart(2,'0') }})</span>
-                  </div>
-                </div>
-                <span v-else class="text-xs text-gray-300">—</span>
-              </td>
-
-              <!-- Total hours -->
-              <td class="py-1.5 text-end font-mono text-xs">
-                {{ day.log?.type === 'work' && day.log.totalDecimalHours
-                    ? day.log.totalDecimalHours + 'h' : '—' }}
-              </td>
-
-              <!-- KM -->
-              <td class="py-1.5 text-end font-mono text-xs">
-                {{ day.log ? (day.log.kmForDay ?? 0) : '—' }}
-              </td>
-
-              <!-- Amount -->
-              <td class="py-1.5 text-end font-mono text-xs text-green-700">
-                {{ day.log ? ((day.log.kmForDay ?? 0) * settingsStore.settings.kmPrice).toFixed(2) : '—' }}
-              </td>
-
-              <!-- Actions -->
-              <td class="py-1.5 text-end">
-                <div class="flex items-center justify-end gap-1">
-                  <button
-                    v-if="day.log"
-                    class="p-1 rounded text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                    @click="openModal(day.date, day.log)"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                    </svg>
-                  </button>
-                  <button
-                    v-if="day.log?.id"
-                    class="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    @click="doDelete(day.log.id!)"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                  </button>
-                  <button
-                    v-if="!day.log"
-                    class="p-1 rounded text-gray-300 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                    @click="openModal(day.date, null)"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr class="font-semibold text-gray-900 border-t-2 border-gray-200">
-              <td colspan="3" class="pt-3 text-sm">{{ t.report.totalAmount }}</td>
-              <td class="pt-3 text-end font-mono text-sm">{{ report.totalDecimalHours }}h</td>
-              <td class="pt-3 text-end" />
-              <td class="pt-3 text-end font-mono text-sm text-green-700">{{ report.totalKmAmount.toFixed(2) }}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+      <!-- Milouim hours card (shown only when relevant) -->
+      <div v-if="milouimHoursTotal > 0" class="card text-center border-2 border-purple-200 bg-purple-50">
+        <p class="text-xs text-purple-600 mb-1">{{ t.report.milouimHours }}</p>
+        <p class="text-2xl font-bold text-purple-700">{{ milouimHoursTotal }}h</p>
+        <p class="text-xs text-purple-400 mt-0.5">{{ i18n.locale === 'he' ? 'לא נכלל בסה״כ' : 'Not included in total' }}</p>
       </div>
     </template>
 
@@ -543,7 +622,29 @@ watch([selectedYear, selectedMonth], load)
 
           <AppSelect v-model="form.absenceReason" :label="t.absence.reason"
             :placeholder="t.absence.selectReason" :options="absenceReasonOptions" />
+
+          <!-- Clock in/out during milouim -->
+          <div v-if="isMilouimReason(form.absenceReason)" class="space-y-1.5">
+            <label class="text-sm font-medium text-purple-700 block">{{ t.report.milouimHoursLabel }}</label>
+            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <input v-model="form.milouimClockIn" type="time"
+                class="rounded-xl border-purple-200 text-sm focus:border-purple-400 focus:ring-purple-400" />
+              <span class="text-gray-300 text-xs">→</span>
+              <input v-model="form.milouimClockOut" type="time"
+                class="rounded-xl border-purple-200 text-sm focus:border-purple-400 focus:ring-purple-400" />
+            </div>
+          </div>
         </template>
+
+        <!-- Comment -->
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">{{ t.report.comment }}</label>
+          <textarea
+            v-model="form.comment"
+            rows="2"
+            class="block w-full rounded-xl border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500 resize-none"
+          />
+        </div>
 
         <div class="flex gap-3 justify-end pt-1">
           <AppButton variant="secondary" @click="showEditModal = false">{{ t.absence.cancel }}</AppButton>

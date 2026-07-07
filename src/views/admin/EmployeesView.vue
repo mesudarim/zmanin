@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useI18nStore } from '@/stores/i18n'
+import { useSettingsStore } from '@/stores/settings'
 import { getAllEmployees, setUserProfile, deleteEmployee, getProfileByEmail } from '@/firebase/firestore'
 import { sendSignInLinkToEmail } from 'firebase/auth'
 import { auth as firebaseAuth } from '@/firebase/config'
@@ -11,7 +12,8 @@ import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 
-const i18n = useI18nStore()
+const i18n          = useI18nStore()
+const settingsStore = useSettingsStore()
 const t = computed(() => i18n.t)
 
 const employees = ref<UserProfile[]>([])
@@ -36,13 +38,23 @@ const form = reactive<Partial<UserProfile> & { contractRate: number; weeklyHours
   contractType: 'percentage',
   contractRate: 100,
   weeklyHoursBase: 40,
-  dailyKmBase: 0
+  dailyKmBase: 0,
+  startDate: '',
+  endDate: '',
+  endReason: ''
 })
 
 const contractTypeOptions = computed(() => [
   { value: 'percentage', label: t.value.admin.percentage },
   { value: 'hourly',     label: t.value.admin.hourly }
 ])
+
+const endReasonOptions = computed(() =>
+  settingsStore.settings.endReasons.map(r => ({
+    value: r.id,
+    label: i18n.locale === 'he' ? r.labelHe : r.labelEn
+  }))
+)
 
 const rateOptions = Array.from({ length: 20 }, (_, i) => (i + 1) * 5).map(v => ({ value: v, label: v + '%' }))
 
@@ -52,13 +64,18 @@ async function load() {
   loading.value = false
 }
 
-onMounted(load)
+onMounted(async () => { await settingsStore.load(); await load() })
+
+function today(): string {
+  return new Date().toISOString().split('T')[0]
+}
 
 function openAdd() {
   editingUid.value = null
   Object.assign(form, {
     name: '', firstName: '', email: '', birthDate: '',
-    contractType: 'percentage', contractRate: 100, weeklyHoursBase: 40, dailyKmBase: 0
+    contractType: 'percentage', contractRate: 100, weeklyHoursBase: 40, dailyKmBase: 0,
+    startDate: today(), endDate: '', endReason: ''
   })
   showFormModal.value = true
 }
@@ -69,7 +86,10 @@ function openEdit(emp: UserProfile) {
     name: emp.name, firstName: emp.firstName, email: emp.email,
     birthDate: emp.birthDate, contractType: emp.contractType,
     contractRate: emp.contractRate ?? 100, weeklyHoursBase: emp.weeklyHoursBase ?? 40,
-    dailyKmBase: emp.dailyKmBase ?? 0
+    dailyKmBase: emp.dailyKmBase ?? 0,
+    startDate: emp.startDate ?? '',
+    endDate: emp.endDate ?? '',
+    endReason: emp.endReason ?? ''
   })
   showFormModal.value = true
 }
@@ -99,7 +119,10 @@ async function saveEmployee() {
     contractType: form.contractType!,
     ...(form.contractType === 'percentage' ? { contractRate: Number(form.contractRate) } : {}),
     weeklyHoursBase: Number(form.weeklyHoursBase),
-    dailyKmBase: Number(form.dailyKmBase)
+    dailyKmBase: Number(form.dailyKmBase),
+    startDate: form.startDate || undefined,
+    endDate: form.endDate || undefined,
+    endReason: form.endDate && form.endReason ? form.endReason : undefined
   })
   showFormModal.value = false
   saving.value = false
@@ -241,6 +264,21 @@ async function sendInvite() {
           type="number"
           min="0"
         />
+
+        <!-- Employment period -->
+        <div class="border-t border-gray-100 pt-3 space-y-3">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ t.admin.employmentPeriod }}</p>
+          <AppInput v-model="form.startDate!" :label="t.admin.startDate" type="date" />
+          <AppInput v-model="form.endDate!" :label="t.admin.endDate" type="date" :min="form.startDate" />
+          <AppSelect
+            v-if="form.endDate"
+            v-model="form.endReason!"
+            :label="t.admin.endReason"
+            :placeholder="t.absence.selectReason"
+            :options="endReasonOptions"
+          />
+        </div>
+
         <div class="flex gap-3 justify-end pt-2">
           <AppButton variant="secondary" type="button" @click="showFormModal = false">
             {{ t.admin.cancel }}

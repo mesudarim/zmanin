@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { translations, type Locale } from '@/i18n/translations'
 
 export const useI18nStore = defineStore('i18n', () => {
-  const locale = ref<Locale>((localStorage.getItem('zmanin_locale') as Locale) ?? 'en')
+  const locale = ref<Locale>((localStorage.getItem('zmanin_locale') as Locale) ?? 'he')
 
   const isRtl = computed(() => locale.value === 'he')
   const t = computed(() => translations[locale.value])

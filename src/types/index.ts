@@ -17,6 +17,9 @@ export interface UserProfile {
   contractRate?: number          // 50 | 70 | 100 — only if percentage
   weeklyHoursBase?: number       // default 40
   dailyKmBase: number
+  startDate?: string             // YYYY-MM-DD — auto-filled on creation
+  endDate?: string               // YYYY-MM-DD — set when employee leaves
+  endReason?: string             // 'resignation' | 'dismissal' | 'contractEnd'
   createdAt?: Timestamp
   updatedAt?: Timestamp
   invitedBy?: string
@@ -36,6 +39,12 @@ export interface TimeLog {
   customKm?: number | null
   kmForDay?: number
   absenceReason?: string | null
+  comment?: string | null
+  manualEntry?: boolean
+  milouimClockIn?: Timestamp | null
+  milouimClockOut?: Timestamp | null
+  milouimTotalMinutes?: number | null
+  milouimTotalDecimalHours?: number | null
   createdAt?: Timestamp
   updatedAt?: Timestamp
 }
@@ -50,6 +59,7 @@ export interface GlobalSettings {
   kmPrice: number
   weeklyHoursBase: number
   absenceReasons: AbsenceReason[]
+  endReasons: AbsenceReason[]
 }
 
 export interface MonthlyReport {

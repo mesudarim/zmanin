@@ -67,7 +67,8 @@ export function useTimeLog(date: string) {
       totalDecimalHours: existing?.totalDecimalHours ?? 0,
       isRemote:         existing?.isRemote ?? false,
       customKm:         existing?.customKm ?? null,
-      kmForDay:         computeKm(existing)
+      kmForDay:         computeKm(existing),
+      manualEntry:      false
     })
     log.value = await getTimeLogByDate(userId.value, date)
     saving.value = false
@@ -100,7 +101,8 @@ export function useTimeLog(date: string) {
       totalDecimalHours,
       isRemote: log.value.isRemote ?? false,
       customKm: log.value.customKm ?? null,
-      kmForDay: computeKm(log.value)
+      kmForDay: computeKm(log.value),
+      manualEntry: false
     })
     log.value = await getTimeLogByDate(userId.value, date)
     saving.value = false
@@ -121,6 +123,63 @@ export function useTimeLog(date: string) {
       customKm:         null,
       kmForDay:         0,
       absenceReason:    reason
+    })
+    log.value = await getTimeLogByDate(userId.value, date)
+    saving.value = false
+  }
+
+  // ── Milouim clock in / out (updates milouim fields on the absence log) ────────
+
+  const isMilouimClockedIn = computed(() =>
+    !!log.value?.milouimClockIn && !log.value?.milouimClockOut
+  )
+
+  async function milouimClockIn() {
+    if (!log.value || log.value.type !== 'absence') return
+    saving.value = true
+    await createOrUpdateTimeLog({
+      userId:                  userId.value,
+      date,
+      type:                    'absence',
+      sessions:                [],
+      totalMinutes:            0,
+      totalDecimalHours:       0,
+      isRemote:                false,
+      customKm:                null,
+      kmForDay:                0,
+      absenceReason:           log.value.absenceReason ?? '',
+      milouimClockIn:          Timestamp.now(),
+      milouimClockOut:         null,
+      milouimTotalMinutes:     null,
+      milouimTotalDecimalHours: null
+    })
+    log.value = await getTimeLogByDate(userId.value, date)
+    saving.value = false
+  }
+
+  async function milouimClockOut() {
+    if (!log.value?.milouimClockIn) return
+    saving.value = true
+    const now = Timestamp.now()
+    const milouimTotalMinutes = Math.max(0,
+      Math.floor((now.toMillis() - log.value.milouimClockIn.toMillis()) / 60000)
+    )
+    const milouimTotalDecimalHours = Math.round(milouimTotalMinutes / 60 * 100) / 100
+    await createOrUpdateTimeLog({
+      userId:                  userId.value,
+      date,
+      type:                    'absence',
+      sessions:                [],
+      totalMinutes:            0,
+      totalDecimalHours:       0,
+      isRemote:                false,
+      customKm:                null,
+      kmForDay:                0,
+      absenceReason:           log.value.absenceReason ?? '',
+      milouimClockIn:          log.value.milouimClockIn,
+      milouimClockOut:         now,
+      milouimTotalMinutes,
+      milouimTotalDecimalHours
     })
     log.value = await getTimeLogByDate(userId.value, date)
     saving.value = false
@@ -167,9 +226,10 @@ export function useTimeLog(date: string) {
 
   return {
     log, loading, saving,
-    activeSession, isClockedIn, isClockedOut,
+    activeSession, isClockedIn, isClockedOut, isMilouimClockedIn,
     getSessions,
     loadLog, clockIn, clockOut, declareAbsence, updateTravelOptions,
+    milouimClockIn, milouimClockOut,
     formatTime, formatDuration
   }
 }

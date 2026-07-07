@@ -86,7 +86,10 @@ export const translations = {
       work: 'Work',
       absence: 'Absence',
       remote: 'Remote',
-      totalAmount: 'Total amount'
+      totalAmount: 'Total amount',
+      comment: 'Comment',
+      milouimHours: 'Hours worked during Miluim',
+      milouimHoursLabel: 'Hours worked during Miluim'
     },
     // Admin
     admin: {
@@ -119,7 +122,13 @@ export const translations = {
       sendInvite: 'Send Invitation Email',
       inviteSent: 'Invitation sent to',
       inviteNoProfile: 'No profile found for this email. Please create the employee profile first (Add Employee), then send the invitation.',
-      inviteQuotaExceeded: 'Daily email quota exceeded (Firebase limit). Please try again tomorrow.'
+      inviteQuotaExceeded: 'Daily email quota exceeded (Firebase limit). Please try again tomorrow.',
+      employmentPeriod: 'Employment Period',
+      startDate: 'Start Date',
+      endDate: 'End Date',
+      endReason: 'Reason for Leaving',
+      endReasons: 'End of Employment Reasons',
+      addEndReason: 'Add Reason'
     },
     // Common
     common: {
@@ -267,7 +276,10 @@ export const translations = {
       work: 'עבודה',
       absence: 'היעדרות',
       remote: 'עבודה מהבית',
-      totalAmount: 'סכום כולל'
+      totalAmount: 'סכום כולל',
+      comment: 'הערה',
+      milouimHours: 'שעות עבודה במילואים',
+      milouimHoursLabel: 'שעות עבודה במילואים'
     },
     admin: {
       employees: 'עובדים',
@@ -299,7 +311,13 @@ export const translations = {
       sendInvite: 'שלח מייל הזמנה',
       inviteSent: 'הזמנה נשלחה אל',
       inviteNoProfile: 'לא נמצא פרופיל עבור כתובת מייל זו. אנא צור תחילה את פרופיל העובד (הוסף עובד), ולאחר מכן שלח את ההזמנה.',
-      inviteQuotaExceeded: 'חרגת ממכסת המיילים היומית של Firebase. אנא נסה שוב מחר.'
+      inviteQuotaExceeded: 'חרגת ממכסת המיילים היומית של Firebase. אנא נסה שוב מחר.',
+      employmentPeriod: 'תקופת העסקה',
+      startDate: 'תאריך תחילת עבודה',
+      endDate: 'תאריך סיום עבודה',
+      endReason: 'סיבת עזיבה',
+      endReasons: 'סיבות סיום העסקה',
+      addEndReason: 'הוסף סיבה'
     },
     common: {
       loading: 'טוען…',

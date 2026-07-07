@@ -12,6 +12,11 @@ export const useSettingsStore = defineStore('settings', () => {
       { id: 'milouim',        labelEn: 'Milouim',        labelHe: 'מילואים' },
       { id: 'child_sickness', labelEn: 'Child sickness', labelHe: 'מחלת ילד' },
       { id: 'vacation',       labelEn: 'Vacation',       labelHe: 'חופשה' }
+    ],
+    endReasons: [
+      { id: 'resignation',  labelEn: 'Resignation',    labelHe: 'התפטרות' },
+      { id: 'dismissal',    labelEn: 'Dismissal',      labelHe: 'פיטורים' },
+      { id: 'contractEnd',  labelEn: 'End of Contract', labelHe: 'סיום חוזה' }
     ]
   })
   const loaded = ref(false)

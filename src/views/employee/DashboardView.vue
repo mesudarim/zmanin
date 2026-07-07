@@ -18,9 +18,10 @@ const today = new Date().toISOString().split('T')[0]
 
 const {
   log, loading, saving,
-  isClockedIn, isClockedOut,
+  isClockedIn, isClockedOut, isMilouimClockedIn,
   getSessions,
   loadLog, clockIn, clockOut, declareAbsence, updateTravelOptions,
+  milouimClockIn, milouimClockOut,
   formatTime, formatDuration
 } = useTimeLog(today)
 
@@ -40,7 +41,13 @@ const absenceReasonOptions = computed(() =>
   }))
 )
 
-const isAbsent = computed(() => log.value?.type === 'absence')
+const isAbsent   = computed(() => log.value?.type === 'absence')
+const isMilouim  = computed(() => {
+  if (!isAbsent.value) return false
+  const r = settingsStore.settings.absenceReasons.find(x => x.id === log.value?.absenceReason)
+  if (!r) return false
+  return r.labelEn.toLowerCase().includes('milouim') || r.labelHe.includes('מילואים')
+})
 
 const todayLabel = computed(() => {
   return new Date().toLocaleDateString(i18n.locale === 'he' ? 'he-IL' : 'en-US', {
@@ -93,12 +100,66 @@ watch([isRemote], () => {
     </div>
 
     <template v-else>
-      <!-- Absence badge -->
-      <div v-if="isAbsent" class="card flex items-center gap-3">
+      <!-- Regular absence (non-milouim) -->
+      <div v-if="isAbsent && !isMilouim" class="card flex items-center gap-3">
         <AppBadge variant="yellow">{{ t.dashboard.absenceRecorded }}</AppBadge>
         <span class="text-sm text-gray-600">
           {{ absenceReasonOptions.find(o => o.value === log?.absenceReason)?.label ?? log?.absenceReason }}
         </span>
+      </div>
+
+      <!-- Milouim card: absence badge + clock in/out -->
+      <div v-else-if="isAbsent && isMilouim" class="card space-y-5">
+        <!-- Milouim label -->
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+            ✡ {{ absenceReasonOptions.find(o => o.value === log?.absenceReason)?.label ?? log?.absenceReason }}
+          </span>
+        </div>
+
+        <!-- Milouim sessions display -->
+        <div v-if="log?.milouimClockIn" class="space-y-1.5">
+          <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">{{ t.dashboard.workTime }}</p>
+          <div class="flex items-center gap-2 text-sm">
+            <AppBadge :variant="!log.milouimClockOut ? 'green' : 'blue'">
+              {{ formatTime(log.milouimClockIn) }}
+              <span v-if="log.milouimClockOut"> → {{ formatTime(log.milouimClockOut) }}</span>
+              <span v-else class="animate-pulse"> ●</span>
+            </AppBadge>
+            <span v-if="log.milouimTotalMinutes" class="text-xs text-gray-500">
+              {{ formatDuration(log.milouimTotalMinutes) }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Clock buttons (milouim) -->
+        <div class="flex justify-center">
+          <button
+            v-if="!isMilouimClockedIn && !log?.milouimClockOut"
+            :disabled="saving"
+            class="w-full flex flex-col items-center justify-center gap-2 py-7 rounded-2xl bg-primary-600 hover:bg-primary-700 active:scale-95 text-white font-bold text-xl shadow-lg transition-all disabled:opacity-60"
+            @click="milouimClockIn"
+          >
+            <svg class="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {{ t.dashboard.clockIn }}
+          </button>
+          <button
+            v-else-if="isMilouimClockedIn"
+            :disabled="saving"
+            class="w-full flex flex-col items-center justify-center gap-2 py-7 rounded-2xl bg-red-500 hover:bg-red-600 active:scale-95 text-white font-bold text-xl shadow-lg transition-all disabled:opacity-60"
+            @click="milouimClockOut"
+          >
+            <svg class="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 10h6v4H9z"/>
+            </svg>
+            {{ t.dashboard.clockOut }}
+          </button>
+        </div>
       </div>
 
       <!-- Work card -->
@@ -134,37 +195,36 @@ watch([isRemote], () => {
         </div>
 
         <!-- Clock buttons -->
-        <div class="flex gap-3 flex-wrap">
-          <!-- Clock In — shown when no active session -->
-          <AppButton
+        <div class="flex justify-center">
+          <!-- Clock In -->
+          <button
             v-if="!isClockedIn"
-            size="lg"
-            :loading="saving"
+            :disabled="saving"
+            class="w-full flex flex-col items-center justify-center gap-2 py-7 rounded-2xl bg-primary-600 hover:bg-primary-700 active:scale-95 text-white font-bold text-xl shadow-lg transition-all disabled:opacity-60"
             @click="clockIn"
           >
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            <svg class="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round"
                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             {{ t.dashboard.clockIn }}
-            <span v-if="isClockedOut" class="text-xs opacity-75 ms-1">({{ t.dashboard.newSession ?? 'new session' }})</span>
-          </AppButton>
+            <span v-if="isClockedOut" class="text-sm font-normal opacity-75">({{ t.dashboard.newSession }})</span>
+          </button>
 
-          <!-- Clock Out — shown when active session -->
-          <AppButton
+          <!-- Clock Out -->
+          <button
             v-else
-            variant="danger"
-            size="lg"
-            :loading="saving"
+            :disabled="saving"
+            class="w-full flex flex-col items-center justify-center gap-2 py-7 rounded-2xl bg-red-500 hover:bg-red-600 active:scale-95 text-white font-bold text-xl shadow-lg transition-all disabled:opacity-60"
             @click="clockOut"
           >
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            <svg class="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round"
                 d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10h6v4H9z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 10h6v4H9z"/>
             </svg>
             {{ t.dashboard.clockOut }}
-          </AppButton>
+          </button>
         </div>
 
         <!-- Travel options -->
