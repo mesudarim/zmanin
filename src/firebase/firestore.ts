@@ -14,7 +14,8 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 }
 
 export async function setUserProfile(uid: string, data: Partial<UserProfile>) {
-  await setDoc(doc(db, 'users', uid), { ...data, updatedAt: serverTimestamp() }, { merge: true })
+  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
+  await setDoc(doc(db, 'users', uid), { ...clean, updatedAt: serverTimestamp() }, { merge: true })
 }
 
 export async function getAllEmployees(): Promise<UserProfile[]> {
@@ -108,12 +109,11 @@ export async function getTimeLogsForMonth(userId: string, year: number, month: n
 // ─── Global Settings ──────────────────────────────────────────────────────────
 
 export async function getGlobalSettings(): Promise<GlobalSettings> {
-  const snap = await getDoc(doc(db, 'global_settings', 'config'))
-  if (snap.exists()) return snap.data() as GlobalSettings
-  // defaults
-  return {
+  const defaults: GlobalSettings = {
     kmPrice: 0.5,
     weeklyHoursBase: 40,
+    useFixedMonthlyHours: false,
+    fixedMonthlyHours: 0,
     absenceReasons: [
       { id: 'sickness',       labelEn: 'Sickness',          labelHe: 'מחלה' },
       { id: 'milouim',        labelEn: 'Milouim',           labelHe: 'מילואים' },
@@ -126,6 +126,10 @@ export async function getGlobalSettings(): Promise<GlobalSettings> {
       { id: 'contractEnd', labelEn: 'End of Contract', labelHe: 'סיום חוזה' }
     ]
   }
+  const snap = await getDoc(doc(db, 'global_settings', 'config'))
+  if (!snap.exists()) return defaults
+  // Merge with defaults so fields added after initial deploy are never undefined
+  return { ...defaults, ...snap.data() } as GlobalSettings
 }
 
 export async function updateGlobalSettings(data: Partial<GlobalSettings>) {

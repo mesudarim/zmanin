@@ -7,6 +7,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<GlobalSettings>({
     kmPrice: 0.5,
     weeklyHoursBase: 40,
+    useFixedMonthlyHours: false,
+    fixedMonthlyHours: 0,
     absenceReasons: [
       { id: 'sickness',       labelEn: 'Sickness',       labelHe: 'מחלה' },
       { id: 'milouim',        labelEn: 'Milouim',        labelHe: 'מילואים' },

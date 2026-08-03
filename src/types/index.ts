@@ -23,6 +23,7 @@ export interface UserProfile {
   createdAt?: Timestamp
   updatedAt?: Timestamp
   invitedBy?: string
+  isTemporary?: boolean
 }
 
 export interface TimeLog {
@@ -58,6 +59,8 @@ export interface AbsenceReason {
 export interface GlobalSettings {
   kmPrice: number
   weeklyHoursBase: number
+  useFixedMonthlyHours: boolean
+  fixedMonthlyHours: number
   absenceReasons: AbsenceReason[]
   endReasons: AbsenceReason[]
 }

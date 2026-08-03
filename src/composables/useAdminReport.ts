@@ -11,6 +11,7 @@ export interface EmployeeReportData {
   excusedAbsences: number
   unexcusedAbsences: number
   theoreticalHours: number
+  absenceEquivalentHours: number
   totalHours: number
   totalKm: number
   totalAmount: number
@@ -36,6 +37,30 @@ export function useAdminReport() {
     return count
   }
 
+  // Formats a Date as YYYY-MM-DD using LOCAL time (avoids UTC-offset shift from toISOString)
+  function localDateStr(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  // Prorates fixedMonthlyHours over a date range by counting working days per calendar month
+  function fixedHoursForRange(from: string, to: string, rate: number, fixedMonthlyHours: number): number {
+    let total = 0
+    const start = new Date(from)
+    const end   = new Date(to)
+    const cur   = new Date(start.getFullYear(), start.getMonth(), 1)
+    while (cur <= end) {
+      const mStart = new Date(cur)
+      const mEnd   = new Date(cur.getFullYear(), cur.getMonth() + 1, 0)
+      const rStart = mStart < start ? start : mStart
+      const rEnd   = mEnd   > end   ? end   : mEnd
+      const inRange = countWorkingDays(localDateStr(rStart), localDateStr(rEnd))
+      const inMonth = countWorkingDays(localDateStr(mStart), localDateStr(mEnd))
+      if (inMonth > 0) total += fixedMonthlyHours * rate * (inRange / inMonth)
+      cur.setMonth(cur.getMonth() + 1)
+    }
+    return Math.round(total * 100) / 100
+  }
+
   async function generate(selectedUids: string[], from: string, to: string) {
     loading.value = true
     settings.value = await getGlobalSettings()
@@ -55,17 +80,30 @@ export function useAdminReport() {
         const totalKm    = logs.reduce((s, l) => s + Number(l.kmForDay ?? 0), 0)
         const totalAmount = Math.round(totalKm * settings.value!.kmPrice * 100) / 100
 
-        const weeklyBase = employee.weeklyHoursBase ?? settings.value!.weeklyHoursBase ?? 40
-        const rate = employee.contractType === 'percentage' && employee.contractRate
-          ? employee.contractRate / 100
-          : 1
-        const theoreticalHours = Math.round((weeklyBase * rate / 5) * workingDays * 100) / 100
+        const s = settings.value!
+        const isPercentage = employee.contractType === 'percentage' && employee.contractRate
+        const rate = isPercentage ? employee.contractRate! / 100 : 1
+
+        // Hourly employees have no fixed hours-to-do target
+        const theoreticalHours = !isPercentage ? 0
+          : s.useFixedMonthlyHours && s.fixedMonthlyHours
+            ? fixedHoursForRange(from, to, rate, s.fixedMonthlyHours)
+            : Math.round(((employee.weeklyHoursBase ?? s.weeklyHoursBase ?? 40) * rate / 5) * workingDays * 100) / 100
+
+        // Absence days (excl. Fri/Sat) count toward the theoretical target, same as useReport.ts
+        const absenceWeekdayCount = absenceLogs.filter(l => {
+          const dow = new Date(l.date).getDay()
+          return dow !== 5 && dow !== 6
+        }).length
+        // A full work day at 100% = 9h; absence days are credited at that rate
+        const dailyBase = isPercentage ? 9 * rate : 0
+        const absenceEquivalentHours = Math.round(absenceWeekdayCount * dailyBase * 100) / 100
 
         return {
           employee, logs,
           workDays: workLogs.length,
           excusedAbsences, unexcusedAbsences,
-          theoreticalHours, totalHours, totalKm, totalAmount
+          theoreticalHours, absenceEquivalentHours, totalHours, totalKm, totalAmount
         }
       })
     )

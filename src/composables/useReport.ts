@@ -23,10 +23,16 @@ export function useReport() {
     let theoreticalHours = 0
     let dailyBase = 0
     if (user.contractType === 'percentage' && user.contractRate) {
-      const weeklyBase = user.weeklyHoursBase ?? settings.weeklyHoursBase ?? 40
-      dailyBase = (weeklyBase * (user.contractRate / 100)) / 5
+      const rate = user.contractRate / 100
       const workingDays = countWorkingDays(year, month)
-      theoreticalHours = Math.round(dailyBase * workingDays * 100) / 100
+      if (settings.useFixedMonthlyHours && settings.fixedMonthlyHours) {
+        theoreticalHours = Math.round(settings.fixedMonthlyHours * rate * 100) / 100
+      } else {
+        const weeklyBase = user.weeklyHoursBase ?? settings.weeklyHoursBase ?? 40
+        theoreticalHours = Math.round(((weeklyBase * rate) / 5) * workingDays * 100) / 100
+      }
+      // A full work day at 100% = 9h; absence days are credited at that rate
+      dailyBase = 9 * rate
     }
 
     // Absence days count as full work days — but weekend absences (Fri/Sat) don't count

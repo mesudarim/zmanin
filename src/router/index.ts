@@ -61,6 +61,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'admin' }
     },
     {
+      path: '/admin/employees/:uid/time-entry',
+      name: 'AdminTempTimeEntry',
+      component: () => import('@/views/admin/TempTimeEntryView.vue'),
+      meta: { requiresAuth: true, role: 'admin' }
+    },
+    {
       path: '/admin/config',
       name: 'AdminConfig',
       component: () => import('@/views/admin/ConfigView.vue'),

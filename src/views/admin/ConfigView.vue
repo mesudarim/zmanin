@@ -15,6 +15,8 @@ const saved = ref(false)
 
 const kmPrice = ref(0.5)
 const weeklyHoursBase = ref(40)
+const useFixedMonthlyHours = ref(false)
+const fixedMonthlyHours = ref(182)
 const reasons    = ref<AbsenceReason[]>([])
 const endReasons = ref<AbsenceReason[]>([])
 
@@ -23,8 +25,10 @@ const newEndReason = reactive({ labelEn: '', labelHe: '' })
 
 onMounted(async () => {
   await settingsStore.load()
-  kmPrice.value        = settingsStore.settings.kmPrice
-  weeklyHoursBase.value = settingsStore.settings.weeklyHoursBase
+  kmPrice.value             = settingsStore.settings.kmPrice
+  weeklyHoursBase.value     = settingsStore.settings.weeklyHoursBase
+  useFixedMonthlyHours.value = settingsStore.settings.useFixedMonthlyHours
+  fixedMonthlyHours.value   = settingsStore.settings.fixedMonthlyHours || 182
   reasons.value        = [...settingsStore.settings.absenceReasons]
   endReasons.value     = [...(settingsStore.settings.endReasons ?? [])]
 })
@@ -57,6 +61,8 @@ async function saveConfig() {
   await settingsStore.save({
     kmPrice: Number(kmPrice.value),
     weeklyHoursBase: Number(weeklyHoursBase.value),
+    useFixedMonthlyHours: useFixedMonthlyHours.value,
+    fixedMonthlyHours: Number(fixedMonthlyHours.value),
     absenceReasons: reasons.value,
     endReasons: endReasons.value
   })
@@ -83,15 +89,46 @@ async function saveConfig() {
         />
         <span class="text-sm text-gray-500">/ km</span>
       </div>
-      <div class="flex items-center gap-3">
-        <label class="text-sm font-medium text-gray-700">{{ t.admin.weeklyHours }}</label>
-        <input
-          v-model.number="weeklyHoursBase"
-          type="number"
-          min="1"
-          max="48"
-          class="w-24 rounded-xl border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
-        />
+      <!-- Fixed monthly hours toggle -->
+      <div class="border-t border-gray-100 pt-4 space-y-3">
+        <label class="flex items-center gap-3 cursor-pointer select-none">
+          <div
+            class="relative w-10 h-5 rounded-full transition-colors"
+            :class="useFixedMonthlyHours ? 'bg-primary-600' : 'bg-gray-200'"
+            @click="useFixedMonthlyHours = !useFixedMonthlyHours"
+          >
+            <span
+              class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform"
+              :class="useFixedMonthlyHours ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </div>
+          <span class="text-sm font-medium text-gray-700">{{ t.admin.useFixedMonthlyHours }}</span>
+        </label>
+
+        <Transition name="fade">
+          <div v-if="useFixedMonthlyHours" class="flex items-center gap-3 ps-13">
+            <input
+              v-model.number="fixedMonthlyHours"
+              type="number"
+              min="1"
+              class="w-28 rounded-xl border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+            />
+            <span class="text-sm text-gray-500">{{ t.admin.fixedMonthlyHoursUnit }}</span>
+          </div>
+        </Transition>
+
+        <Transition name="fade">
+          <div v-if="!useFixedMonthlyHours" class="flex items-center gap-3">
+            <label class="text-sm font-medium text-gray-700">{{ t.admin.weeklyHours }}</label>
+            <input
+              v-model.number="weeklyHoursBase"
+              type="number"
+              min="1"
+              max="48"
+              class="w-24 rounded-xl border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+            />
+          </div>
+        </Transition>
       </div>
     </div>
 

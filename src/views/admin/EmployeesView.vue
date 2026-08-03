@@ -30,7 +30,7 @@ const inviteError = ref('')
 
 const editingUid = ref<string | null>(null)
 
-const form = reactive<Partial<UserProfile> & { contractRate: number; weeklyHoursBase: number; dailyKmBase: number }>({
+const form = reactive<Partial<UserProfile> & { contractRate: number; weeklyHoursBase: number; dailyKmBase: number; isTemporary: boolean }>({
   name: '',
   firstName: '',
   email: '',
@@ -41,7 +41,8 @@ const form = reactive<Partial<UserProfile> & { contractRate: number; weeklyHours
   dailyKmBase: 0,
   startDate: '',
   endDate: '',
-  endReason: ''
+  endReason: '',
+  isTemporary: false
 })
 
 const contractTypeOptions = computed(() => [
@@ -75,7 +76,7 @@ function openAdd() {
   Object.assign(form, {
     name: '', firstName: '', email: '', birthDate: '',
     contractType: 'percentage', contractRate: 100, weeklyHoursBase: 40, dailyKmBase: 0,
-    startDate: today(), endDate: '', endReason: ''
+    startDate: today(), endDate: '', endReason: '', isTemporary: false
   })
   showFormModal.value = true
 }
@@ -83,13 +84,14 @@ function openAdd() {
 function openEdit(emp: UserProfile) {
   editingUid.value = emp.uid
   Object.assign(form, {
-    name: emp.name, firstName: emp.firstName, email: emp.email,
+    name: emp.name, firstName: emp.firstName, email: emp.email ?? '',
     birthDate: emp.birthDate, contractType: emp.contractType,
     contractRate: emp.contractRate ?? 100, weeklyHoursBase: emp.weeklyHoursBase ?? 40,
     dailyKmBase: emp.dailyKmBase ?? 0,
     startDate: emp.startDate ?? '',
     endDate: emp.endDate ?? '',
-    endReason: emp.endReason ?? ''
+    endReason: emp.endReason ?? '',
+    isTemporary: emp.isTemporary ?? false
   })
   showFormModal.value = true
 }
@@ -113,16 +115,17 @@ async function saveEmployee() {
     uid,
     name: form.name!,
     firstName: form.firstName!,
-    email: form.email!,
-    birthDate: form.birthDate!,
+    email: form.isTemporary ? (form.email || '') : form.email!,
+    birthDate: form.birthDate ?? '',
     role: 'employee',
     contractType: form.contractType!,
     ...(form.contractType === 'percentage' ? { contractRate: Number(form.contractRate) } : {}),
     weeklyHoursBase: Number(form.weeklyHoursBase),
     dailyKmBase: Number(form.dailyKmBase),
-    startDate: form.startDate || undefined,
-    endDate: form.endDate || undefined,
-    endReason: form.endDate && form.endReason ? form.endReason : undefined
+    ...(form.startDate ? { startDate: form.startDate } : {}),
+    ...(form.endDate   ? { endDate:   form.endDate }   : {}),
+    ...(form.endDate && form.endReason ? { endReason: form.endReason } : {}),
+    ...(form.isTemporary ? { isTemporary: true } : {})
   })
   showFormModal.value = false
   saving.value = false
@@ -167,6 +170,9 @@ async function sendInvite() {
         <AppButton variant="secondary" size="sm" @click="showInviteModal = true">
           ✉ {{ t.admin.inviteEmployee }}
         </AppButton>
+        <AppButton variant="secondary" size="sm" @click="openAdd(); form.isTemporary = true">
+          + {{ t.admin.addTempEmployee }}
+        </AppButton>
         <AppButton size="sm" @click="openAdd">
           + {{ t.admin.addEmployee }}
         </AppButton>
@@ -203,7 +209,10 @@ async function sendInvite() {
                 {{ emp.firstName }} {{ emp.name }}
               </div>
             </td>
-            <td class="py-3 text-gray-500">{{ emp.email }}</td>
+            <td class="py-3 text-gray-500">
+              {{ emp.email || '—' }}
+              <AppBadge v-if="emp.isTemporary" variant="yellow" class="ml-1 text-xs">{{ t.admin.temporary }}</AppBadge>
+            </td>
             <td class="py-3 text-center">
               <AppBadge :variant="emp.contractType === 'percentage' ? 'blue' : 'gray'">
                 {{ emp.contractType === 'percentage' ? emp.contractRate + '%' : t.admin.hourly }}
@@ -212,6 +221,13 @@ async function sendInvite() {
             <td class="py-3 text-center">{{ emp.dailyKmBase }} km</td>
             <td class="py-3 text-end">
               <div class="flex gap-1 justify-end">
+                <AppButton
+                  v-if="emp.isTemporary"
+                  variant="ghost" size="sm"
+                  @click="$router.push('/admin/employees/' + emp.uid + '/time-entry')"
+                >
+                  ✎ {{ t.admin.timeEntry }}
+                </AppButton>
                 <AppButton variant="ghost" size="sm" @click="$router.push('/admin/employees/' + emp.uid + '/report')">
                   📊
                 </AppButton>
@@ -234,11 +250,20 @@ async function sendInvite() {
       @close="showFormModal = false"
     >
       <form class="space-y-4" @submit.prevent="saveEmployee">
+        <!-- Temporary employee toggle -->
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input v-model="form.isTemporary" type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" :disabled="!!editingUid" />
+          <span class="text-sm font-medium text-gray-700">{{ t.admin.temporary }}</span>
+        </label>
+        <p v-if="form.isTemporary" class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+          {{ t.admin.tempEmployeeHint }}
+        </p>
+
         <div class="grid grid-cols-2 gap-3">
           <AppInput v-model="form.firstName!" :label="t.admin.firstName" required />
           <AppInput v-model="form.name!" :label="t.admin.name" required />
         </div>
-        <AppInput v-model="form.email!" :label="t.admin.email" type="email" required />
+        <AppInput v-if="!form.isTemporary" v-model="form.email!" :label="t.admin.email" type="email" required />
         <AppInput v-model="form.birthDate!" :label="t.admin.birthDate" type="date" />
         <AppSelect
           v-model="form.contractType!"

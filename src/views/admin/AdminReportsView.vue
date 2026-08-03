@@ -233,7 +233,9 @@ onMounted(async () => {
               </td>
               <td class="py-2.5 text-end font-mono">{{ r.workDays }}</td>
               <td class="py-2.5 text-end font-mono font-semibold text-primary-700">{{ r.totalHours }}h</td>
-              <td class="py-2.5 text-end font-mono text-gray-500">{{ r.theoreticalHours }}h</td>
+              <td class="py-2.5 text-end font-mono text-gray-500">
+                {{ r.employee.contractType === 'percentage' ? r.theoreticalHours + 'h' : '—' }}
+              </td>
               <td class="py-2.5 text-end font-mono font-semibold"
                   :class="r.excusedAbsences ? 'text-green-600' : 'text-gray-300'">
                 {{ r.excusedAbsences }}
