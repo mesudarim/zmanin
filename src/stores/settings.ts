@@ -9,6 +9,8 @@ export const useSettingsStore = defineStore('settings', () => {
     weeklyHoursBase: 40,
     useFixedMonthlyHours: false,
     fixedMonthlyHours: 0,
+    overtimeThreshold125: 8.6,
+    overtimeThreshold150: 12,
     absenceReasons: [
       { id: 'sickness',       labelEn: 'Sickness',       labelHe: 'מחלה' },
       { id: 'milouim',        labelEn: 'Milouim',        labelHe: 'מילואים' },

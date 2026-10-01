@@ -8,6 +8,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
+import { getHolidayType } from '@/utils/holidays'
 
 const auth          = useAuthStore()
 const i18n          = useI18nStore()
@@ -55,6 +56,13 @@ const todayLabel = computed(() => {
   })
 })
 
+const todayHoliday = computed(() => {
+  const year = today.slice(0, 4)
+  return settingsStore.settings.holidays?.[year]?.[today] ?? null
+})
+
+const todayHolidayType = computed(() => getHolidayType(today, settingsStore.settings.holidays))
+
 const sessions = computed(() => getSessions(log.value))
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -92,6 +100,19 @@ watch([isRemote], () => {
       <h1 class="text-2xl font-bold text-gray-900 mt-1">
         {{ t.dashboard.greeting }}, {{ auth.profile?.firstName }}
       </h1>
+    </div>
+
+    <!-- Public holiday banner -->
+    <div v-if="todayHoliday" class="rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-3 flex items-center gap-3">
+      <span class="text-2xl">✡</span>
+      <div>
+        <p class="text-sm font-semibold text-indigo-800">
+          {{ todayHolidayType === 'half' ? t.report.halfPublicHoliday : t.report.publicHoliday }}
+        </p>
+        <p class="text-xs text-indigo-600">
+          {{ i18n.locale === 'he' ? todayHoliday.nameHe : todayHoliday.nameEn }}
+        </p>
+      </div>
     </div>
 
     <!-- Loading -->

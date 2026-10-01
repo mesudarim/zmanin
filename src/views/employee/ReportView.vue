@@ -47,14 +47,19 @@ const allDays = computed(() => {
   const m = selectedMonth.value
   const daysInMonth = new Date(y, m, 0).getDate()
   const logs = report.value?.logs ?? []
+  const yearHolidays = settingsStore.settings.holidays?.[String(y)] ?? {}
   return Array.from({ length: daysInMonth }, (_, i) => {
     const day     = String(i + 1).padStart(2, '0')
     const dateStr = `${y}-${String(m).padStart(2, '0')}-${day}`
-    const dow     = new Date(dateStr).getDay()
+    const dow     = new Date(dateStr + 'T12:00:00').getDay()
+    const isWeekend   = dow === 5 || dow === 6
+    const holidayEntry = yearHolidays[dateStr] ?? null   // show on ANY day, even weekends
     return {
       date: dateStr,
       dow,
-      isWeekend: dow === 5 || dow === 6,
+      isWeekend,
+      isHoliday: !!holidayEntry,
+      holidayEntry,
       log: logs.find(l => l.date === dateStr) ?? null
     }
   })
@@ -144,7 +149,7 @@ function openModal(dateStr: string, log: TimeLog | null) {
 
   const sessions = getSessions(log)
 
-  form.type          = log?.type ?? 'work'
+  form.type          = (log?.type === 'work' || log?.type === 'absence') ? log.type : 'work'
   form.isRemote      = log?.isRemote ?? false
   editSessions.value = sessions.length
     ? sessions.map(s => ({ clockIn: tsToTime(s.clockIn), clockOut: s.clockOut ? tsToTime(s.clockOut) : '' }))
@@ -335,14 +340,20 @@ watch([selectedYear, selectedMonth], load)
               :key="day.date"
               :class="[
                 'border-b transition-colors',
-                day.isWeekend ? 'bg-gray-50/60 text-gray-400' : 'hover:bg-primary-50/30',
-                'border-gray-50'
+                day.log && hasOpenSession(day.log)
+                  ? 'bg-red-50 hover:bg-red-100 border-red-100'
+                  : day.isHoliday
+                    ? 'bg-indigo-50/70 hover:bg-indigo-50 border-indigo-100'
+                    : day.isWeekend
+                      ? 'bg-slate-100/60 text-gray-400 hover:bg-slate-100 border-slate-100'
+                      : 'hover:bg-primary-50/30 border-gray-50'
               ]"
             >
               <!-- Edit / Add (start of row) -->
               <td class="py-1.5 ps-0">
+                <!-- Real log (work or absence, even on a holiday) → pencil -->
                 <button
-                  v-if="day.log"
+                  v-if="day.log && day.log.type !== 'holiday'"
                   class="p-1 rounded text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
                   @click="openModal(day.date, day.log)"
                 >
@@ -351,6 +362,7 @@ watch([selectedYear, selectedMonth], load)
                       d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                   </svg>
                 </button>
+                <!-- No real log (empty day or synthetic holiday) → + add -->
                 <button
                   v-else
                   class="flex items-center justify-center w-6 h-6 rounded-lg bg-primary-100 text-primary-700 hover:bg-primary-600 hover:text-white transition-colors font-bold"
@@ -370,14 +382,24 @@ watch([selectedYear, selectedMonth], load)
 
               <!-- Type -->
               <td class="py-1.5">
-                <AppBadge
-                  v-if="day.log"
-                  :variant="day.log.type === 'absence' ? 'yellow' : hasOpenSession(day.log) ? 'red' : day.log.isRemote ? 'blue' : 'green'"
-                >
-                  {{ day.log.type === 'absence'
-                      ? getReasonLabel(day.log.absenceReason ?? '')
-                      : day.log.isRemote ? t.report.remote : t.report.work }}
-                </AppBadge>
+                <!-- Public holiday takes visual priority -->
+                <template v-if="day.isHoliday">
+                  <AppBadge variant="purple">
+                    {{ day.holidayEntry!.type === 'half' ? t.report.halfPublicHoliday : t.report.publicHoliday }}
+                  </AppBadge>
+                  <span v-if="day.holidayEntry" class="ms-1 text-xs text-indigo-500">
+                    {{ i18n.locale === 'he' ? day.holidayEntry.nameHe : day.holidayEntry.nameEn }}
+                  </span>
+                </template>
+                <template v-else-if="day.log">
+                  <AppBadge
+                    :variant="day.log.type === 'absence' ? 'yellow' : hasOpenSession(day.log) ? 'red' : day.log.isRemote ? 'blue' : 'green'"
+                  >
+                    {{ day.log.type === 'absence'
+                        ? getReasonLabel(day.log.absenceReason ?? '')
+                        : day.log.isRemote ? t.report.remote : t.report.work }}
+                  </AppBadge>
+                </template>
                 <span v-else class="text-xs text-gray-300">—</span>
               </td>
 
@@ -463,6 +485,17 @@ watch([selectedYear, selectedMonth], load)
               <td class="pt-3 text-end font-mono text-sm text-green-700">{{ report.totalKmAmount.toFixed(2) }}</td>
               <td /><td />
             </tr>
+            <tr v-if="report.hours125 > 0 || report.hours150 > 0" class="text-xs text-gray-500 border-t border-gray-100">
+              <td colspan="4" class="pt-2 text-gray-400">{{ t.report.payDetail }}</td>
+              <td class="pt-2 text-end font-mono">
+                <span class="text-gray-600">{{ t.report.hoursNormal }} {{ report.hoursNormal }}h</span>
+              </td>
+              <td class="pt-2 text-end font-mono text-orange-500" colspan="2">
+                <span v-if="report.hours125 > 0">{{ t.report.hours125 }} {{ report.hours125 }}h</span>
+                <span v-if="report.hours150 > 0" class="ms-3 text-red-500">{{ t.report.hours150 }} {{ report.hours150 }}h</span>
+              </td>
+              <td /><td />
+            </tr>
           </tfoot>
         </table>
       </div>
@@ -506,7 +539,7 @@ watch([selectedYear, selectedMonth], load)
       <div v-if="milouimHoursTotal > 0" class="card text-center border-2 border-purple-200 bg-purple-50">
         <p class="text-xs text-purple-600 mb-1">{{ t.report.milouimHours }}</p>
         <p class="text-2xl font-bold text-purple-700">{{ milouimHoursTotal }}h</p>
-        <p class="text-xs text-purple-400 mt-0.5">{{ i18n.locale === 'he' ? 'לא נכלל בסה״כ' : 'Not included in total' }}</p>
+        <p class="text-xs text-purple-400 mt-0.5">{{ t.report.notIncludedInTotal }}</p>
       </div>
     </template>
 

@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18nStore } from '@/stores/i18n'
 import { useSettingsStore } from '@/stores/settings'
-import { getUserProfile, getTimeLogsForDateRange, createOrUpdateTimeLog, deleteTimeLog } from '@/firebase/firestore'
+import { getUserProfile, getTimeLogsForDateRange, createOrUpdateTimeLog, deleteTimeLog, Timestamp } from '@/firebase/firestore'
 import type { UserProfile } from '@/types'
 import AppButton from '@/components/ui/AppButton.vue'
 
@@ -29,14 +29,14 @@ interface DayRow {
   weekday:    number  // 0=Sun … 6=Sat
   // '' = no entry | 'work' = work day | any other string = absence reason id
   entryType:  string
-  hours:      number
+  clockIn:    string  // HH:MM
+  clockOut:   string  // HH:MM
   km:         number
   existingId?: string
 }
 
 const rows = ref<DayRow[]>([])
 
-// All options: no-entry + work + each absence reason
 const entryOptions = computed(() => [
   { value: '',     label: t.value.admin.noEntry },
   { value: 'work', label: t.value.admin.workEntry },
@@ -46,20 +46,36 @@ const entryOptions = computed(() => [
   }))
 ])
 
-const isWeekend = (w: number) => w === 0 || w === 6
-
 function weekdayLabel(date: string): string {
   return new Date(date + 'T12:00:00').toLocaleDateString(
-    i18n.locale === 'he' ? 'he-IL' : 'fr-FR',
+    i18n.locale === 'he' ? 'he-IL' : 'en-US',
     { weekday: 'short' }
   )
 }
 
+function tsToTimeStr(ts: InstanceType<typeof Timestamp> | null | undefined): string {
+  if (!ts) return ''
+  const d = ts.toDate()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function calcMinutes(row: DayRow): number {
+  if (!row.clockIn || !row.clockOut) return 0
+  const [hi, mi] = row.clockIn.split(':').map(Number)
+  const [ho, mo] = row.clockOut.split(':').map(Number)
+  const diff = (ho * 60 + mo) - (hi * 60 + mi)
+  return diff > 0 ? diff : 0
+}
+
+function calcHours(row: DayRow): number {
+  return Math.round(calcMinutes(row) / 60 * 100) / 100
+}
+
 function buildRows(
   year: number, month: number,
-  logs: { id?: string; date: string; type: string; totalDecimalHours?: number; kmForDay?: number; absenceReason?: string | null }[]
+  logs: { id?: string; date: string; type: string; clockIn?: InstanceType<typeof Timestamp> | null; clockOut?: InstanceType<typeof Timestamp> | null; kmForDay?: number; absenceReason?: string | null }[]
 ) {
-  const logMap     = new Map(logs.map(l => [l.date, l]))
+  const logMap      = new Map(logs.map(l => [l.date, l]))
   const daysInMonth = new Date(year, month, 0).getDate()
   const result: DayRow[] = []
   for (let d = 1; d <= daysInMonth; d++) {
@@ -74,7 +90,8 @@ function buildRows(
       date,
       weekday,
       entryType,
-      hours:      log?.totalDecimalHours ?? 0,
+      clockIn:    tsToTimeStr(log?.clockIn),
+      clockOut:   tsToTimeStr(log?.clockOut),
       km:         Number(log?.kmForDay ?? employee.value?.dailyKmBase ?? 0),
       existingId: log?.id
     })
@@ -102,30 +119,27 @@ async function load() {
 onMounted(load)
 watch([selectedYear, selectedMonth], load)
 
-function onTypeChange(row: DayRow) {
-  if (row.entryType === 'work' && row.hours === 0) {
-    const weeklyBase = Number(employee.value?.weeklyHoursBase ?? 42)
-    row.hours = Math.round((weeklyBase / 5) * 100) / 100
-  }
-}
-
 async function save() {
   saving.value = true
   const uid = route.params.uid as string
   for (const row of rows.value) {
-    if (isWeekend(row.weekday)) continue
     if (row.entryType === 'work') {
+      const totalMinutes      = calcMinutes(row)
+      const totalDecimalHours = Math.round(totalMinutes / 60 * 100) / 100
+      const clockInTs  = row.clockIn  ? Timestamp.fromDate(new Date(`${row.date}T${row.clockIn}:00`))  : null
+      const clockOutTs = row.clockOut ? Timestamp.fromDate(new Date(`${row.date}T${row.clockOut}:00`)) : null
       await createOrUpdateTimeLog({
         userId: uid,
         date: row.date,
         type: 'work',
-        totalDecimalHours: Number(row.hours) || 0,
-        totalMinutes: Math.round((Number(row.hours) || 0) * 60),
+        clockIn:  clockInTs,
+        clockOut: clockOutTs,
+        totalDecimalHours,
+        totalMinutes,
         kmForDay: Number(row.km) || 0,
         manualEntry: true
       })
     } else if (row.entryType !== '') {
-      // absence: entryType is the reason id
       await createOrUpdateTimeLog({
         userId: uid,
         date: row.date,
@@ -145,7 +159,7 @@ async function save() {
 }
 
 const filledCount = computed(() =>
-  rows.value.filter(r => r.entryType !== '' && !isWeekend(r.weekday)).length
+  rows.value.filter(r => r.entryType !== '').length
 )
 </script>
 
@@ -191,21 +205,18 @@ const filledCount = computed(() =>
           <thead>
             <tr class="border-b border-gray-100 text-xs text-gray-500">
               <th class="pb-2 font-medium text-start w-20">{{ t.report.date }}</th>
-              <th class="pb-2 font-medium text-start w-14"></th>
-              <th class="pb-2 font-medium text-start">{{ t.report.type }}</th>
-              <th class="pb-2 font-medium text-start w-28">{{ t.report.hours }}</th>
-              <th class="pb-2 font-medium text-start w-28">km</th>
+              <th class="pb-2 font-medium text-start w-12"></th>
+              <th class="pb-2 font-medium text-start w-44">{{ t.report.type }}</th>
+              <th class="pb-2 font-medium text-start">{{ t.adminReports.sessions }}</th>
+              <th class="pb-2 font-medium text-end w-16">{{ t.report.hours }}</th>
+              <th class="pb-2 font-medium text-start w-24">km</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="row in rows"
               :key="row.date"
-              :class="[
-                isWeekend(row.weekday)
-                  ? 'opacity-30 bg-gray-50'
-                  : row.entryType !== '' ? 'border-b border-gray-50' : 'border-b border-gray-50 hover:bg-gray-50/50'
-              ]"
+              class="border-b border-gray-50 hover:bg-gray-50/40"
             >
               <!-- Date -->
               <td class="py-1.5 font-mono text-xs text-gray-500">{{ row.date.slice(5) }}</td>
@@ -215,10 +226,8 @@ const filledCount = computed(() =>
               <!-- Type select -->
               <td class="py-1 pr-2">
                 <select
-                  v-if="!isWeekend(row.weekday)"
                   v-model="row.entryType"
-                  class="text-xs rounded-lg border-gray-200 focus:border-primary-400 focus:ring-primary-400 py-1 pr-6 w-full max-w-[180px]"
-                  @change="onTypeChange(row)"
+                  class="text-xs rounded-lg border-gray-200 focus:border-primary-400 focus:ring-primary-400 py-1 pr-6 w-full"
                 >
                   <option v-for="opt in entryOptions" :key="opt.value" :value="opt.value">
                     {{ opt.label }}
@@ -226,23 +235,34 @@ const filledCount = computed(() =>
                 </select>
               </td>
 
-              <!-- Hours -->
+              <!-- Clock in / Clock out -->
               <td class="py-1 pr-2">
-                <input
-                  v-if="!isWeekend(row.weekday) && row.entryType === 'work'"
-                  v-model="row.hours"
-                  type="number"
-                  min="0"
-                  max="24"
-                  step="0.25"
-                  class="w-20 text-xs rounded-lg border-gray-200 focus:border-primary-400 focus:ring-primary-400 py-1 text-center"
-                />
+                <div v-if="row.entryType === 'work'" class="flex items-center gap-1.5">
+                  <input
+                    v-model="row.clockIn"
+                    type="time"
+                    class="w-24 text-xs rounded-lg border-gray-200 focus:border-primary-400 focus:ring-primary-400 py-1 text-center font-mono"
+                  />
+                  <span class="text-gray-300 text-xs">→</span>
+                  <input
+                    v-model="row.clockOut"
+                    type="time"
+                    class="w-24 text-xs rounded-lg border-gray-200 focus:border-primary-400 focus:ring-primary-400 py-1 text-center font-mono"
+                  />
+                </div>
+              </td>
+
+              <!-- Computed hours -->
+              <td class="py-1.5 pr-2 text-end font-mono text-xs">
+                <span v-if="row.entryType === 'work' && calcHours(row) > 0" class="text-primary-700 font-semibold">
+                  {{ calcHours(row) }}h
+                </span>
               </td>
 
               <!-- KM -->
               <td class="py-1">
                 <input
-                  v-if="!isWeekend(row.weekday) && row.entryType === 'work'"
+                  v-if="row.entryType === 'work'"
                   v-model="row.km"
                   type="number"
                   min="0"
@@ -259,7 +279,7 @@ const filledCount = computed(() =>
       <div v-if="!loading" class="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
         <span v-if="savedMsg" class="text-sm text-green-600 font-medium">✓ {{ t.common.success }}</span>
         <span v-else class="text-xs text-gray-400">
-          {{ filledCount }} {{ i18n.locale === 'he' ? 'ימים מוזנים' : 'jours saisis' }}
+          {{ filledCount }} {{ t.admin.daysEntered }}
         </span>
         <AppButton :loading="saving" @click="save">{{ t.admin.saveEntries }}</AppButton>
       </div>

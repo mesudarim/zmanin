@@ -35,13 +35,19 @@ service cloud.firestore {
     // ── Time Logs ────────────────────────────────────────────────────────────
 
     match /time_logs/{logId} {
-      // Employees can read/write their own logs; admins can read all
+      // Employees can read/write their own logs; admins can read/write all
       allow read: if isAuth() && (
         resource.data.userId == request.auth.uid || isAdmin()
       );
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuth() && resource.data.userId == request.auth.uid;
-      allow delete: if isAdmin();
+      allow create: if isAuth() && (
+        request.resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow update: if isAuth() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow delete: if isAdmin() || (
+        isAuth() && resource.data.userId == request.auth.uid
+      );
     }
 
     // ── Global Settings ──────────────────────────────────────────────────────

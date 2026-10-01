@@ -1,10 +1,10 @@
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc,
   collection, query, where, getDocs, addDoc,
-  writeBatch, serverTimestamp, Timestamp
+  writeBatch, serverTimestamp, Timestamp, arrayUnion
 } from 'firebase/firestore'
 import { db } from './config'
-import type { UserProfile, TimeLog, GlobalSettings } from '@/types'
+import type { UserProfile, TimeLog, GlobalSettings, RateChange } from '@/types'
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,13 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 export async function setUserProfile(uid: string, data: Partial<UserProfile>) {
   const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
   await setDoc(doc(db, 'users', uid), { ...clean, updatedAt: serverTimestamp() }, { merge: true })
+}
+
+export async function appendRateChange(uid: string, change: RateChange) {
+  await updateDoc(doc(db, 'users', uid), {
+    rateHistory: arrayUnion(change),
+    updatedAt: serverTimestamp()
+  })
 }
 
 export async function getAllEmployees(): Promise<UserProfile[]> {
@@ -114,6 +121,8 @@ export async function getGlobalSettings(): Promise<GlobalSettings> {
     weeklyHoursBase: 40,
     useFixedMonthlyHours: false,
     fixedMonthlyHours: 0,
+    overtimeThreshold125: 8.6,
+    overtimeThreshold150: 12,
     absenceReasons: [
       { id: 'sickness',       labelEn: 'Sickness',          labelHe: 'מחלה' },
       { id: 'milouim',        labelEn: 'Milouim',           labelHe: 'מילואים' },

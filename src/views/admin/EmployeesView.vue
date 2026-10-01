@@ -2,10 +2,11 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useI18nStore } from '@/stores/i18n'
 import { useSettingsStore } from '@/stores/settings'
-import { getAllEmployees, setUserProfile, deleteEmployee, getProfileByEmail } from '@/firebase/firestore'
+import { useAuthStore } from '@/stores/auth'
+import { getAllEmployees, setUserProfile, deleteEmployee, getProfileByEmail, appendRateChange } from '@/firebase/firestore'
 import { sendSignInLinkToEmail } from 'firebase/auth'
 import { auth as firebaseAuth } from '@/firebase/config'
-import type { UserProfile } from '@/types'
+import type { UserProfile, RateChange } from '@/types'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -14,6 +15,7 @@ import AppBadge from '@/components/ui/AppBadge.vue'
 
 const i18n          = useI18nStore()
 const settingsStore = useSettingsStore()
+const authStore     = useAuthStore()
 const t = computed(() => i18n.t)
 
 const employees = ref<UserProfile[]>([])
@@ -21,9 +23,14 @@ const loading = ref(true)
 const saving = ref(false)
 const inviting = ref(false)
 
-const showFormModal = ref(false)
-const showDeleteModal = ref(false)
-const showInviteModal = ref(false)
+const showFormModal    = ref(false)
+const showDeleteModal  = ref(false)
+const showInviteModal  = ref(false)
+const showRateConfirm  = ref(false)
+
+const originalRate      = ref<number>(100)
+const rateChangedByUser = ref(false)
+const pendingRateChange = ref<{ oldRate: number; newRate: number } | null>(null)
 const inviteEmail = ref('')
 const inviteSentTo = ref('')
 const inviteError = ref('')
@@ -39,6 +46,7 @@ const form = reactive<Partial<UserProfile> & { contractRate: number; weeklyHours
   contractRate: 100,
   weeklyHoursBase: 40,
   dailyKmBase: 0,
+  employeeNumber: '',
   startDate: '',
   endDate: '',
   endReason: '',
@@ -73,21 +81,30 @@ function today(): string {
 
 function openAdd() {
   editingUid.value = null
+  saveError.value = ''
   Object.assign(form, {
     name: '', firstName: '', email: '', birthDate: '',
     contractType: 'percentage', contractRate: 100, weeklyHoursBase: 40, dailyKmBase: 0,
-    startDate: today(), endDate: '', endReason: '', isTemporary: false
+    employeeNumber: '', startDate: today(), endDate: '', endReason: '', isTemporary: false
   })
   showFormModal.value = true
 }
 
+const editingEmployee = computed<UserProfile | null>(() =>
+  editingUid.value ? (employees.value.find(e => e.uid === editingUid.value) ?? null) : null
+)
+
 function openEdit(emp: UserProfile) {
   editingUid.value = emp.uid
+  originalRate.value = emp.contractRate ?? 100
+  rateChangedByUser.value = false
+  saveError.value = ''
   Object.assign(form, {
     name: emp.name, firstName: emp.firstName, email: emp.email ?? '',
     birthDate: emp.birthDate, contractType: emp.contractType,
     contractRate: emp.contractRate ?? 100, weeklyHoursBase: emp.weeklyHoursBase ?? 40,
     dailyKmBase: emp.dailyKmBase ?? 0,
+    employeeNumber: emp.employeeNumber ?? '',
     startDate: emp.startDate ?? '',
     endDate: emp.endDate ?? '',
     endReason: emp.endReason ?? '',
@@ -108,28 +125,72 @@ async function doDelete() {
   await load()
 }
 
+function onContractRateChange(val: string | number) {
+  form.contractRate = Number(val)
+  rateChangedByUser.value = true
+}
+
 async function saveEmployee() {
+  if (
+    editingUid.value &&
+    form.contractType === 'percentage' &&
+    rateChangedByUser.value &&
+    Number(form.contractRate) !== originalRate.value
+  ) {
+    pendingRateChange.value = { oldRate: originalRate.value, newRate: Number(form.contractRate) }
+    showRateConfirm.value = true
+    return
+  }
+  await doSaveEmployee()
+}
+
+const saveError = ref('')
+
+async function doSaveEmployee() {
   saving.value = true
-  const uid = editingUid.value ?? crypto.randomUUID()
-  await setUserProfile(uid, {
-    uid,
-    name: form.name!,
-    firstName: form.firstName!,
-    email: form.isTemporary ? (form.email || '') : form.email!,
-    birthDate: form.birthDate ?? '',
-    role: 'employee',
-    contractType: form.contractType!,
-    ...(form.contractType === 'percentage' ? { contractRate: Number(form.contractRate) } : {}),
-    weeklyHoursBase: Number(form.weeklyHoursBase),
-    dailyKmBase: Number(form.dailyKmBase),
-    ...(form.startDate ? { startDate: form.startDate } : {}),
-    ...(form.endDate   ? { endDate:   form.endDate }   : {}),
-    ...(form.endDate && form.endReason ? { endReason: form.endReason } : {}),
-    ...(form.isTemporary ? { isTemporary: true } : {})
-  })
-  showFormModal.value = false
-  saving.value = false
-  await load()
+  saveError.value = ''
+  try {
+    const uid = editingUid.value ?? crypto.randomUUID()
+    await setUserProfile(uid, {
+      uid,
+      name: form.name!,
+      firstName: form.firstName!,
+      email: form.isTemporary ? (form.email || '') : form.email!,
+      birthDate: form.birthDate ?? '',
+      role: editingEmployee.value?.role ?? 'employee',
+      contractType: form.contractType!,
+      ...(form.contractType === 'percentage' ? { contractRate: Number(form.contractRate) } : {}),
+      weeklyHoursBase: Number(form.weeklyHoursBase),
+      dailyKmBase: Number(form.dailyKmBase),
+      ...(form.employeeNumber ? { employeeNumber: form.employeeNumber } : {}),
+      ...(form.startDate ? { startDate: form.startDate } : {}),
+      ...(form.endDate   ? { endDate:   form.endDate }   : {}),
+      ...(form.endDate && form.endReason ? { endReason: form.endReason } : {}),
+      ...(form.isTemporary ? { isTemporary: true } : {})
+    })
+
+    if (pendingRateChange.value && editingUid.value) {
+      const change: RateChange = {
+        date: today(),
+        oldRate: pendingRateChange.value.oldRate,
+        newRate: pendingRateChange.value.newRate,
+        changedByUid: authStore.firebaseUser?.uid ?? '',
+        changedByName: `${authStore.profile?.firstName ?? ''} ${authStore.profile?.name ?? ''}`.trim()
+      }
+      await appendRateChange(editingUid.value, change)
+      pendingRateChange.value = null
+    }
+
+    showFormModal.value = false
+    showRateConfirm.value = false
+    await load()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    saveError.value = msg
+    console.error('[doSaveEmployee]', msg)
+  } finally {
+    saving.value = false
+  }
 }
 
 async function sendInvite() {
@@ -189,6 +250,7 @@ async function sendInvite() {
         <thead>
           <tr class="border-b border-gray-100 text-xs text-gray-500">
             <th class="pb-3 font-medium text-start">{{ t.admin.firstName }} {{ t.admin.name }}</th>
+            <th class="pb-3 font-medium text-center">{{ t.admin.employeeNumber }}</th>
             <th class="pb-3 font-medium text-start">{{ t.admin.email }}</th>
             <th class="pb-3 font-medium text-center">{{ t.admin.contractType }}</th>
             <th class="pb-3 font-medium text-center">{{ t.admin.dailyKm }}</th>
@@ -209,6 +271,7 @@ async function sendInvite() {
                 {{ emp.firstName }} {{ emp.name }}
               </div>
             </td>
+            <td class="py-3 text-center font-mono text-xs text-gray-500">{{ emp.employeeNumber || '—' }}</td>
             <td class="py-3 text-gray-500">
               {{ emp.email || '—' }}
               <AppBadge v-if="emp.isTemporary" variant="yellow" class="ml-1 text-xs">{{ t.admin.temporary }}</AppBadge>
@@ -237,7 +300,7 @@ async function sendInvite() {
             </td>
           </tr>
           <tr v-if="!employees.length">
-            <td colspan="5" class="py-8 text-center text-sm text-gray-400">—</td>
+            <td colspan="6" class="py-8 text-center text-sm text-gray-400">—</td>
           </tr>
         </tbody>
       </table>
@@ -263,6 +326,7 @@ async function sendInvite() {
           <AppInput v-model="form.firstName!" :label="t.admin.firstName" required />
           <AppInput v-model="form.name!" :label="t.admin.name" required />
         </div>
+        <AppInput v-model="form.employeeNumber!" :label="t.admin.employeeNumber" />
         <AppInput v-if="!form.isTemporary" v-model="form.email!" :label="t.admin.email" type="email" required />
         <AppInput v-model="form.birthDate!" :label="t.admin.birthDate" type="date" />
         <AppSelect
@@ -272,9 +336,10 @@ async function sendInvite() {
         />
         <div v-if="form.contractType === 'percentage'" class="grid grid-cols-2 gap-3">
           <AppSelect
-            v-model="form.contractRate"
+            :model-value="form.contractRate"
             :label="t.admin.contractRate"
             :options="rateOptions"
+            @update:model-value="onContractRateChange"
           />
           <AppInput
             v-model="form.weeklyHoursBase"
@@ -282,6 +347,38 @@ async function sendInvite() {
             type="number"
             min="1"
           />
+        </div>
+
+        <!-- Rate change history -->
+        <div
+          v-if="editingUid && editingEmployee?.rateHistory?.length"
+          class="border border-gray-100 rounded-xl p-3 space-y-2"
+        >
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {{ t.admin.rateHistory }}
+          </p>
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-gray-400 border-b border-gray-100">
+                <th class="pb-1 font-medium text-start">{{ t.report.date }}</th>
+                <th class="pb-1 font-medium text-center">{{ t.admin.rateBefore }}</th>
+                <th class="pb-1 font-medium text-center">{{ t.admin.rateAfter }}</th>
+                <th class="pb-1 font-medium text-end">{{ t.admin.rateChangedBy }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(h, idx) in [...(editingEmployee.rateHistory ?? [])].reverse()"
+                :key="idx"
+                class="border-b border-gray-50"
+              >
+                <td class="py-1 font-mono text-gray-600">{{ h.date }}</td>
+                <td class="py-1 text-center text-gray-400">{{ h.oldRate }}%</td>
+                <td class="py-1 text-center font-semibold text-primary-700">{{ h.newRate }}%</td>
+                <td class="py-1 text-end text-gray-500">{{ h.changedByName }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <AppInput
           v-model="form.dailyKmBase"
@@ -304,6 +401,7 @@ async function sendInvite() {
           />
         </div>
 
+        <p v-if="saveError" class="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{{ saveError }}</p>
         <div class="flex gap-3 justify-end pt-2">
           <AppButton variant="secondary" type="button" @click="showFormModal = false">
             {{ t.admin.cancel }}
@@ -311,6 +409,36 @@ async function sendInvite() {
           <AppButton type="submit" :loading="saving">{{ t.admin.saveEmployee }}</AppButton>
         </div>
       </form>
+    </AppModal>
+
+    <!-- Rate change confirmation -->
+    <AppModal
+      :show="showRateConfirm"
+      :title="t.admin.confirmRateChange"
+      @close="showRateConfirm = false; pendingRateChange = null"
+    >
+      <div class="space-y-4">
+        <p class="text-sm text-gray-700">
+          {{ i18n.locale === 'he'
+            ? `האם אתה בטוח שברצונך לשנות את אחוז המשרה של ${form.firstName} מ-${pendingRateChange?.oldRate}% ל-${pendingRateChange?.newRate}%?`
+            : `Change ${form.firstName}'s rate from ${pendingRateChange?.oldRate}% to ${pendingRateChange?.newRate}%?`
+          }}
+        </p>
+        <div class="flex items-center gap-4 justify-center py-2">
+          <span class="text-2xl font-bold text-gray-400">{{ pendingRateChange?.oldRate }}%</span>
+          <span class="text-gray-400">→</span>
+          <span class="text-2xl font-bold text-primary-700">{{ pendingRateChange?.newRate }}%</span>
+        </div>
+        <p class="text-xs text-gray-400 text-center">{{ t.admin.confirmRateChangeNote }}</p>
+        <div class="flex gap-3 justify-end">
+          <AppButton variant="secondary" @click="showRateConfirm = false; pendingRateChange = null">
+            {{ t.admin.cancel }}
+          </AppButton>
+          <AppButton :loading="saving" @click="doSaveEmployee">
+            {{ t.admin.confirm }}
+          </AppButton>
+        </div>
+      </div>
     </AppModal>
 
     <!-- Delete confirm -->

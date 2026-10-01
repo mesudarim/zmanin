@@ -6,7 +6,8 @@ import { useI18nStore } from '@/stores/i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { getUserProfile } from '@/firebase/firestore'
 import { useReport } from '@/composables/useReport'
-import type { MonthlyReport, UserProfile } from '@/types'
+import { splitOvertime } from '@/utils/overtime'
+import type { MonthlyReport, UserProfile, TimeLog } from '@/types'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 
@@ -57,6 +58,28 @@ function tsToTime(ts: Timestamp | null | undefined): string {
   if (!ts) return ''
   const d = ts.toDate()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+const logOvertimeMap = computed(() => {
+  if (!report.value) return new Map<string, { normal: number; h125: number; h150: number }>()
+  const t125 = settingsStore.settings.overtimeThreshold125 ?? 8.6
+  const t150 = settingsStore.settings.overtimeThreshold150 ?? 12
+  const map = new Map<string, { normal: number; h125: number; h150: number }>()
+  for (const l of report.value.logs) {
+    if (l.type === 'work') map.set(l.date, splitOvertime(l.date, l.totalDecimalHours ?? 0, t125, t150))
+  }
+  return map
+})
+
+function isUnclosed(log: TimeLog): boolean {
+  if (log.type !== 'work') return false
+  if (log.sessions?.length) return log.sessions.some(s => s.clockIn && !s.clockOut)
+  return !!(log.clockIn && !log.clockOut)
+}
+
+function isWeekend(date: string): boolean {
+  const day = new Date(date + 'T12:00:00').getDay()
+  return day === 5 || day === 6 // Friday or Saturday
 }
 
 const milouimHoursTotal = computed(() => {
@@ -134,7 +157,7 @@ const milouimHoursTotal = computed(() => {
 
       <div class="card overflow-x-auto">
         <div class="flex items-center justify-between mb-3">
-          <h2 class="text-sm font-semibold text-gray-700">Détail</h2>
+          <h2 class="text-sm font-semibold text-gray-700">{{ t.report.detail }}</h2>
           <AppButton variant="secondary" size="sm" @click="exportCsv(report!, i18n.locale)">
             {{ t.report.exportCsv }}
           </AppButton>
@@ -147,17 +170,39 @@ const milouimHoursTotal = computed(() => {
               <th class="pb-2 font-medium text-start">{{ t.report.type }}</th>
               <th class="pb-2 font-medium text-start">{{ t.adminReports.sessions }}</th>
               <th class="pb-2 font-medium text-end">{{ t.report.hours }}</th>
+              <th class="pb-2 font-medium text-end text-orange-400">{{ t.report.hours125 }}</th>
+              <th class="pb-2 font-medium text-end text-red-400">{{ t.report.hours150 }}</th>
               <th class="pb-2 font-medium text-end">{{ t.report.km }}</th>
               <th class="pb-2 font-medium text-end">{{ t.report.amount }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="log in report.logs" :key="log.date" class="border-b border-gray-50 hover:bg-gray-50">
-              <td class="py-2">{{ log.date }}</td>
+            <tr
+              v-for="log in report.logs"
+              :key="log.date"
+              class="border-b"
+              :class="isUnclosed(log)
+                ? 'bg-red-50 hover:bg-red-100 border-red-100'
+                : log.type === 'holiday'
+                  ? 'bg-indigo-50/70 hover:bg-indigo-50 border-indigo-100'
+                  : isWeekend(log.date)
+                    ? 'bg-slate-100/60 hover:bg-slate-100 border-slate-100'
+                    : 'hover:bg-gray-50 border-gray-50'"
+            >
               <td class="py-2">
-                <AppBadge :variant="log.type === 'absence' ? 'yellow' : log.isRemote ? 'blue' : 'green'">
+                {{ log.date }}
+                <span v-if="isUnclosed(log)" class="ms-1 text-red-400 text-xs" :title="t.report.unclosedSession">●</span>
+              </td>
+              <td class="py-2">
+                <AppBadge v-if="log.type === 'holiday'" variant="purple">
+                  {{ log.holidayDayType === 'half' ? t.report.halfPublicHoliday : t.report.publicHoliday }}
+                </AppBadge>
+                <AppBadge v-else :variant="log.type === 'absence' ? 'yellow' : log.isRemote ? 'blue' : 'green'">
                   {{ log.type === 'absence' ? getReasonLabel(log.absenceReason ?? '') : log.isRemote ? t.report.remote : t.report.work }}
                 </AppBadge>
+                <span v-if="log.type === 'holiday'" class="ms-1 text-xs text-indigo-500">
+                  {{ i18n.locale === 'he' ? log.holidayNameHe : log.holidayNameEn }}
+                </span>
               </td>
               <!-- Sessions / Miluim clock times -->
               <td class="py-2">
@@ -188,9 +233,17 @@ const milouimHoursTotal = computed(() => {
                 </span>
                 <span v-else class="text-gray-300">—</span>
               </td>
-              <td class="py-2 text-end font-mono">{{ log.kmForDay ?? 0 }}</td>
+              <td class="py-2 text-end font-mono text-orange-500">
+                <span v-if="(logOvertimeMap.get(log.date)?.h125 ?? 0) > 0">{{ logOvertimeMap.get(log.date)!.h125 }}h</span>
+                <span v-else class="text-gray-300">—</span>
+              </td>
+              <td class="py-2 text-end font-mono text-red-500">
+                <span v-if="(logOvertimeMap.get(log.date)?.h150 ?? 0) > 0">{{ logOvertimeMap.get(log.date)!.h150 }}h</span>
+                <span v-else class="text-gray-300">—</span>
+              </td>
+              <td class="py-2 text-end font-mono">{{ log.type === 'work' ? (log.kmForDay ?? 0) : '—' }}</td>
               <td class="py-2 text-end font-mono text-green-700">
-                {{ ((log.kmForDay ?? 0) * settingsStore.settings.kmPrice).toFixed(2) }}
+                {{ log.type === 'work' ? ((log.kmForDay ?? 0) * settingsStore.settings.kmPrice).toFixed(2) : '—' }}
               </td>
             </tr>
           </tbody>
@@ -198,12 +251,14 @@ const milouimHoursTotal = computed(() => {
             <tr class="font-semibold border-t border-gray-200">
               <td colspan="3" class="pt-3">{{ t.report.totalAmount }}</td>
               <td class="pt-3 text-end font-mono">{{ report.totalDecimalHours }}h</td>
+              <td class="pt-3 text-end font-mono text-orange-500">{{ report.hours125 > 0 ? report.hours125 + 'h' : '—' }}</td>
+              <td class="pt-3 text-end font-mono text-red-500">{{ report.hours150 > 0 ? report.hours150 + 'h' : '—' }}</td>
               <td class="pt-3 text-end" />
               <td class="pt-3 text-end font-mono text-green-700">{{ report.totalKmAmount.toFixed(2) }}</td>
             </tr>
             <tr v-if="milouimHoursTotal > 0">
-              <td colspan="6" class="pt-1 text-xs text-purple-500 italic">
-                * {{ i18n.locale === 'he' ? 'שעות מילואים — לא נכללות בסה"כ' : 'Heures Milouim — non comptées dans le total' }}
+              <td colspan="8" class="pt-1 text-xs text-purple-500 italic">
+                * {{ t.report.milouimNote }}
               </td>
             </tr>
           </tfoot>
@@ -214,7 +269,7 @@ const milouimHoursTotal = computed(() => {
       <div v-if="milouimHoursTotal > 0" class="card text-center border-2 border-purple-200 bg-purple-50">
         <p class="text-xs text-purple-600 mb-1">{{ t.report.milouimHours }}</p>
         <p class="text-2xl font-bold text-purple-700">{{ milouimHoursTotal }}h</p>
-        <p class="text-xs text-purple-400 mt-0.5">{{ i18n.locale === 'he' ? 'לא נכלל בסה״כ' : 'Non inclus dans le total' }}</p>
+        <p class="text-xs text-purple-400 mt-0.5">{{ t.report.notIncludedInTotal }}</p>
       </div>
     </template>
   </div>

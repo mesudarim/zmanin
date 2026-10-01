@@ -32,17 +32,70 @@ async function loadReport() {
 onMounted(loadReport)
 watch([selectedYear, selectedMonth], loadReport)
 
+const sortBy = ref<'name' | 'number'>('name')
+
+const sortedReportData = computed(() => [...reportData.value].sort((a, b) => {
+  if (sortBy.value === 'number') {
+    const na = a.employee.employeeNumber ?? ''
+    const nb = b.employee.employeeNumber ?? ''
+    if (na && nb) return na.localeCompare(nb, undefined, { numeric: true })
+    if (na) return -1
+    if (nb) return 1
+  }
+  return a.employee.name.localeCompare(b.employee.name)
+}))
+
 const totals = computed(() => reportData.value.reduce(
   (acc, r) => {
     acc.workDays    += r.workDays
     acc.totalHours  += r.totalHours
     acc.effective   += r.totalHours + r.absenceEquivalentHours
     acc.theoretical += r.theoreticalHours
+    acc.hours125    += r.hours125
+    acc.hours150    += r.hours150
     acc.amount      += r.totalAmount
     return acc
   },
-  { workDays: 0, totalHours: 0, effective: 0, theoretical: 0, amount: 0 }
+  { workDays: 0, totalHours: 0, effective: 0, theoretical: 0, hours125: 0, hours150: 0, amount: 0 }
 ))
+
+interface Alert {
+  employeeName: string
+  employeeUid:  string
+  date:         string
+  kind:         'unclosed' | 'long'
+  hours?:       number
+}
+
+const alerts = computed<Alert[]>(() => {
+  const d = now
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const result: Alert[] = []
+  for (const r of reportData.value) {
+    for (const log of r.logs) {
+      if (log.type !== 'work') continue
+      if (log.date >= todayStr) continue  // ignore today — session may still be in progress
+      const name = `${r.employee.firstName} ${r.employee.name}`
+      const uid  = r.employee.uid
+
+      // Unclosed session: has clockIn but no clockOut (legacy single-session)
+      if (log.clockIn && !log.clockOut) {
+        result.push({ employeeName: name, employeeUid: uid, date: log.date, kind: 'unclosed' })
+        continue
+      }
+      // Unclosed session in multi-session logs
+      if (log.sessions?.some(s => s.clockIn && !s.clockOut)) {
+        result.push({ employeeName: name, employeeUid: uid, date: log.date, kind: 'unclosed' })
+        continue
+      }
+      // Suspiciously long session (> 9h — likely forgotten clock-out)
+      if ((log.totalDecimalHours ?? 0) > 9) {
+        result.push({ employeeName: name, employeeUid: uid, date: log.date, kind: 'long', hours: log.totalDecimalHours })
+      }
+    }
+  }
+  return result.sort((a, b) => b.date.localeCompare(a.date))
+})
 </script>
 
 <template>
@@ -57,6 +110,32 @@ const totals = computed(() => reportData.value.reduce(
       <div class="card text-center">
         <p class="text-3xl font-bold text-primary-700">{{ allEmployees.length }}</p>
         <p class="text-xs text-gray-500 mt-1">{{ t.admin.employees }}</p>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div v-if="!loading && alerts.length" class="card border-l-4 border-red-400 space-y-2">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-red-500 font-semibold text-sm">⚠ {{ alerts.length }} {{ t.adminReports.alerts }}{{ alerts.length > 1 ? 's' : '' }}</span>
+        <span class="text-xs text-gray-400">{{ t.months[selectedMonth - 1] }} {{ selectedYear }}</span>
+      </div>
+      <div
+        v-for="(a, i) in alerts"
+        :key="i"
+        class="flex items-center justify-between py-1.5 border-b border-red-50 last:border-0 cursor-pointer hover:bg-red-50/40 rounded px-1 transition-colors"
+        @click="router.push('/admin/employees/' + a.employeeUid + '/report')"
+      >
+        <div class="flex items-center gap-2">
+          <span
+            class="text-xs font-bold px-1.5 py-0.5 rounded"
+            :class="a.kind === 'unclosed' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'"
+          >
+            {{ a.kind === 'unclosed' ? t.adminReports.unclosed : t.adminReports.longSession }}
+          </span>
+          <span class="text-sm font-medium text-gray-800">{{ a.employeeName }}</span>
+          <span class="text-xs text-gray-400 font-mono">{{ a.date }}</span>
+        </div>
+        <span v-if="a.hours" class="text-xs font-mono text-orange-600 font-semibold">{{ a.hours }}h</span>
       </div>
     </div>
 
@@ -85,12 +164,27 @@ const totals = computed(() => reportData.value.reduce(
       </div>
 
       <div v-else class="overflow-x-auto">
+        <!-- Sort toggle -->
+        <div class="flex gap-1.5 mb-3">
+          <button
+            class="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
+            :class="sortBy === 'name' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
+            @click="sortBy = 'name'"
+          >{{ t.adminReports.sortByName }}</button>
+          <button
+            class="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
+            :class="sortBy === 'number' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
+            @click="sortBy = 'number'"
+          >{{ t.adminReports.sortByNumber }}</button>
+        </div>
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-gray-100 text-xs text-gray-500">
               <th class="pb-2 font-medium text-start">{{ t.admin.firstName }}</th>
               <th class="pb-2 font-medium text-end">{{ t.adminReports.daysWorked }}</th>
               <th class="pb-2 font-medium text-end">{{ t.adminReports.hoursWorked }}</th>
+              <th class="pb-2 font-medium text-end text-orange-400">125%</th>
+              <th class="pb-2 font-medium text-end text-red-400">150%</th>
               <th class="pb-2 font-medium text-end">{{ t.adminReports.hoursToDo }}</th>
               <th class="pb-2 font-medium text-end">{{ t.adminReports.difference }}</th>
               <th class="pb-2 font-medium text-end">{{ t.adminReports.travelAmount }}</th>
@@ -98,7 +192,7 @@ const totals = computed(() => reportData.value.reduce(
           </thead>
           <tbody>
             <tr
-              v-for="r in reportData"
+              v-for="r in sortedReportData"
               :key="r.employee.uid"
               class="border-b border-gray-50 hover:bg-primary-50/30 transition-colors cursor-pointer"
               @click="router.push('/admin/employees/' + r.employee.uid + '/report')"
@@ -109,10 +203,13 @@ const totals = computed(() => reportData.value.reduce(
                     {{ r.employee.firstName?.charAt(0) }}
                   </div>
                   <span class="font-medium text-gray-800">{{ r.employee.firstName }} {{ r.employee.name }}</span>
+                  <span v-if="r.employee.employeeNumber" class="text-xs font-mono text-gray-400">#{{ r.employee.employeeNumber }}</span>
                 </div>
               </td>
               <td class="py-2.5 text-end font-mono text-gray-700">{{ r.workDays }}</td>
               <td class="py-2.5 text-end font-mono text-gray-800 font-medium">{{ r.totalHours }}h</td>
+              <td class="py-2.5 text-end font-mono text-orange-500">{{ r.hours125 > 0 ? r.hours125 + 'h' : '—' }}</td>
+              <td class="py-2.5 text-end font-mono text-red-500">{{ r.hours150 > 0 ? r.hours150 + 'h' : '—' }}</td>
               <td class="py-2.5 text-end font-mono text-gray-500">
                 {{ r.employee.contractType === 'percentage' ? r.theoreticalHours + 'h' : '—' }}
               </td>
@@ -126,7 +223,7 @@ const totals = computed(() => reportData.value.reduce(
               <td class="py-2.5 text-end font-mono text-green-700">{{ r.totalAmount.toFixed(2) }}</td>
             </tr>
             <tr v-if="!reportData.length">
-              <td colspan="6" class="py-6 text-center text-sm text-gray-400">{{ t.adminReports.noData }}</td>
+              <td colspan="8" class="py-6 text-center text-sm text-gray-400">{{ t.adminReports.noData }}</td>
             </tr>
           </tbody>
           <tfoot v-if="reportData.length">
@@ -134,6 +231,8 @@ const totals = computed(() => reportData.value.reduce(
               <td class="pt-2.5 text-gray-500">{{ i18n.locale === 'he' ? 'סה״כ' : 'Total' }}</td>
               <td class="pt-2.5 text-end font-mono">{{ totals.workDays }}</td>
               <td class="pt-2.5 text-end font-mono">{{ Math.round(totals.totalHours * 100) / 100 }}h</td>
+              <td class="pt-2.5 text-end font-mono text-orange-500">{{ Math.round(totals.hours125 * 100) / 100 }}h</td>
+              <td class="pt-2.5 text-end font-mono text-red-500">{{ Math.round(totals.hours150 * 100) / 100 }}h</td>
               <td class="pt-2.5 text-end font-mono text-gray-500">{{ Math.round(totals.theoretical * 100) / 100 }}h</td>
               <td class="pt-2.5 text-end font-mono"
                 :class="(totals.effective - totals.theoretical) >= 0 ? 'text-green-600' : 'text-red-500'">
